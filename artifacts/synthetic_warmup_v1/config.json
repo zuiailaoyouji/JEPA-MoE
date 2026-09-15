@@ -1,0 +1,32 @@
+{
+  "config": {
+    "basis_probe_samples": 10000,
+    "batch_size": 512,
+    "beta_activity": 0.1,
+    "data_seed": 20260914,
+    "evaluation_batch_size": 2048,
+    "iid_test_samples": 10000,
+    "jacobian_batch_size": 512,
+    "lambda_jac": 0.1,
+    "learning_rate": 0.001,
+    "margin": 0.3,
+    "min_jacobian_norm": 0.05,
+    "rollout_horizon": 25,
+    "rollout_trajectories": 10000,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "train_samples": 50000,
+    "training_steps": 5000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "gradient_interval": 250,
+  "ramp_steps": 500,
+  "source_dir": "artifacts/synthetic_iid_v1"
+}

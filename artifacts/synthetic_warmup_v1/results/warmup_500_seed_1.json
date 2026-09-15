@@ -1,0 +1,87 @@
+{
+  "basis_cosine_matrix": [
+    [
+      0.42043517837524413,
+      0.17346181182861328,
+      0.615016896057129
+    ],
+    [
+      0.061859316444396975,
+      0.24871461486816407,
+      0.3402930694580078
+    ],
+    [
+      0.10802232036590576,
+      0.6601117126464844,
+      0.10341178359985352
+    ]
+  ],
+  "basis_matched_cosines": [
+    0.42043517837524413,
+    0.3402930694580078,
+    0.6601117126464844
+  ],
+  "basis_matching_learned_to_ground_truth": [
+    0,
+    2,
+    1
+  ],
+  "basis_recovery_score": 0.47361332015991214,
+  "best_step": 4750,
+  "best_validation_prediction_mse": 7.114663138054311e-07,
+  "checkpoint": "artifacts/synthetic_warmup_v1/checkpoints/warmup_500_seed_1.pt",
+  "condition": "warmup_500",
+  "dynamics_subspace_principal_angle_cosines": [
+    0.9515554460656571,
+    0.7343573495096128,
+    0.19091119077367494
+  ],
+  "dynamics_subspace_principal_cosine_similarity": 0.6256079954496483,
+  "dynamics_subspace_projection_reconstruction_error": 0.49692071685546624,
+  "expert_pair_mean_abs_cosines": [
+    0.1022475419998169,
+    0.0939171630859375,
+    0.12123567199707032
+  ],
+  "expert_redundancy_mean_abs_cosine": 0.1058001256942749,
+  "iid_one_step_mse": 7.038955460302531e-07,
+  "iid_rollout_mse": 2.505894389934838e-06,
+  "matched_router_weight_mse": 0.11969263305664063,
+  "maximum_mean_routing_weight": 0.4180839477539062,
+  "mean_routing_weights": [
+    0.3486646759033203,
+    0.4180839477539062,
+    0.23325137176513672
+  ],
+  "mean_sample_routing_entropy": 0.9465809875488281,
+  "minimum_mean_routing_weight": 0.23325137176513672,
+  "normalized_mean_sample_routing_entropy": 0.8616151460461132,
+  "normalized_routing_usage_entropy": 0.9753195945296366,
+  "router_weight_mse": 0.10113343963623046,
+  "routing_effective_experts": 2.919750279573431,
+  "routing_pair_mse_matrix": [
+    [
+      0.09065422019958497,
+      0.21473725204467772,
+      0.07625978889465332
+    ],
+    [
+      0.07062869663238526,
+      0.06263632354736329,
+      0.21971148223876952
+    ],
+    [
+      0.16217827949523925,
+      0.04871219673156738,
+      0.15010977325439454
+    ]
+  ],
+  "routing_usage_entropy": 1.0714980919290569,
+  "seed": 1,
+  "training_seconds": 402.04500833526254,
+  "true_mean_routing_weights": [
+    0.31590502471923826,
+    0.31857200622558596,
+    0.3655229782104492
+  ]
+}

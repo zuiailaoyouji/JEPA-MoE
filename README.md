@@ -87,6 +87,32 @@ synthetic-basis-experiment --device cpu  # resume 已完成结果并统一汇总
 
 当前 `lambda_jac=0.1` 的 5-seed 正式结果保存在 `artifacts/synthetic_iid_v1`。Jacobian MoE 降低了 redundancy 且未发生 routing collapse，但 prediction/rollout 明显变差，principal-angle similarity 更低、projection error 更高，因此不满足方案 E 的初步支持条件。
 
+### Delayed-specialization timing 诊断
+
+为区分性能下降来自 specialization 的施加时机还是目标本身，新增入口：
+
+```bash
+synthetic-warmup-experiment \
+  --device cuda:0 \
+  --output-dir artifacts/synthetic_warmup_v1 \
+  --source-dir artifacts/synthetic_iid_v1
+```
+
+该实验复用完全相同的 full-IID 数据协议和 Vanilla checkpoint，并重新训练 Immediate、Warmup-250、Warmup-500、Warmup-1000。每个 warm-up 在前 `W` steps 只训练 prediction objective，随后用 500 steps 将 `lambda_jac` 从 0 线性增加至 0.1。每 250 steps 还在同一训练 batch、参数更新前记录
+`r_grad = ||lambda_jac * grad_expert(L_spec)|| / (||grad_expert(L_pred)|| + 1e-12)`；探针不写入 optimizer gradient。
+
+5-seed 正式均值如下：
+
+| Condition | IID MSE | Rollout-25 MSE | Redundancy | Principal similarity | Projection error | Usage entropy |
+|---|---:|---:|---:|---:|---:|---:|
+| Vanilla | 6.041e-7 | 3.572e-6 | 0.1853 | 0.8168 | 0.2510 | 0.9789 |
+| Immediate | 1.981e-6 | 8.077e-6 | 0.1049 | 0.6934 | 0.4107 | 0.9341 |
+| Warmup-250 | 7.969e-7 | 5.163e-6 | 0.1011 | 0.8028 | 0.2728 | 0.9804 |
+| Warmup-500 | 7.411e-7 | 3.999e-6 | 0.0996 | 0.8026 | 0.2716 | 0.9803 |
+| Warmup-1000 | 7.124e-7 | 4.727e-6 | 0.0994 | 0.8075 | 0.2618 | 0.9826 |
+
+Immediate 的 `r_grad` 在 step 0/1 分别为 `4.26 +/- 4.94` 和 `3.96 +/- 3.88`，到 step 250 已降至 `0.0747 +/- 0.0554`；warm-up ramp 中的典型比例约为 `0.02`。三个 warm-up 都显著修复了 Immediate 的 prediction、subspace 和 router usage，同时保持更低 redundancy，说明过强的初始化阶段 gradient 是主要问题之一。结论仍不是“目标本身已无害”：最佳 warm-up 的 one-step 和 rollout 均值分别仍为 Vanilla 的 `1.18x` 和 `1.12x`（来自不同 warm-up），未达到原先 `1.05x` 无明显退化门槛。当前证据因此支持“timing 是主要但并非唯一原因”；完整配对结果、逐 seed 指标和梯度曲线数据见 `artifacts/synthetic_warmup_v1/report.md`、`summary.json` 和 `gradients/*.jsonl`。
+
 ### 历史 oracle 诊断
 
 此前使用“中心 action 区域排除/held-out”协议的结果不再属于主实验，只保留为定位 joint co-adaptation 的历史诊断：
