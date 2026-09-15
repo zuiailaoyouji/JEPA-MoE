@@ -1,0 +1,11 @@
+{
+  "best_step": 5000,
+  "best_validation_prediction_mse": 5.594164412468672e-06,
+  "heldout_composition_mse": 3.3573407679796218e-06,
+  "heldout_composition_rollout_mse": 1.5054461438208819e-05,
+  "iid_one_step_mse": 5.499749351292849e-06,
+  "iid_rollout_mse": 1.516495167836547e-05,
+  "model": "dense",
+  "seed": 2,
+  "training_seconds": 19.623709097504616
+}

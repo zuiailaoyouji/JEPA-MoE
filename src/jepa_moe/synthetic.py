@@ -1,0 +1,221 @@
+"""Deterministic synthetic next-state experts and controlled data generation."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+import torch
+from torch import Tensor
+
+from .models import ACTION_DIM, NUM_EXPERTS, STATE_DIM
+
+
+HELDOUT_ACTION_BOUND = 0.35
+ActionRegion = Literal["iid", "heldout"]
+
+
+@dataclass(frozen=True)
+class TransitionBatch:
+    state: Tensor
+    action: Tensor
+    next_state: Tensor
+
+    def __len__(self) -> int:
+        return self.state.shape[0]
+
+
+@dataclass(frozen=True)
+class RolloutBatch:
+    initial_state: Tensor
+    actions: Tensor
+    target_states: Tensor
+
+    def __len__(self) -> int:
+        return self.initial_state.shape[0]
+
+
+def _validate_state_action(state: Tensor, action: Tensor) -> None:
+    if state.ndim != 2 or state.shape[-1] != STATE_DIM:
+        raise ValueError(f"state must have shape [batch, {STATE_DIM}]")
+    if action.ndim != 2 or action.shape[-1] != ACTION_DIM:
+        raise ValueError(f"action must have shape [batch, {ACTION_DIM}]")
+    if state.shape[0] != action.shape[0]:
+        raise ValueError("state and action batch sizes must match")
+    if state.device != action.device or state.dtype != action.dtype:
+        raise ValueError("state and action must share device and dtype")
+
+
+def true_routing_weights(action: Tensor) -> Tensor:
+    """Return action-conditioned ground-truth mixture weights [batch, 3]."""
+
+    if action.ndim != 2 or action.shape[-1] != ACTION_DIM:
+        raise ValueError(f"action must have shape [batch, {ACTION_DIM}]")
+    a0, a1 = action.unbind(dim=-1)
+    logits = torch.stack((2.0 * a0, 2.0 * a1, -2.0 * (a0 + a1)), dim=-1)
+    return torch.softmax(logits, dim=-1)
+
+
+def ground_truth_expert_outputs(state: Tensor, action: Tensor) -> Tensor:
+    """Return the three direct next-state experts with shape [batch, 3, 4]."""
+
+    _validate_state_action(state, action)
+    a0, a1 = action.unbind(dim=-1)
+    x0, x1, x2, x3 = state.unbind(dim=-1)
+
+    expert_1 = torch.stack(
+        (0.9 * x0 + 0.20 * a0, 0.8 * x1 + 0.20 * a1, 0.7 * x2, 0.7 * x3),
+        dim=-1,
+    )
+    expert_2 = torch.stack(
+        (
+            0.7 * x0,
+            0.7 * x1,
+            0.85 * x2 + 0.20 * (1.0 + 0.3 * torch.tanh(x0)) * a0,
+            0.85 * x3 + 0.20 * (1.0 + 0.3 * torch.tanh(x1)) * a1,
+        ),
+        dim=-1,
+    )
+    expert_3 = torch.stack(
+        (
+            0.8 * x0 + 0.15 * a1,
+            0.8 * x1 - 0.15 * a0,
+            0.8 * x2 + 0.10 * (1.0 + 0.3 * torch.tanh(x2)) * a1,
+            0.8 * x3 - 0.10 * (1.0 + 0.3 * torch.tanh(x3)) * a0,
+        ),
+        dim=-1,
+    )
+    return torch.stack((expert_1, expert_2, expert_3), dim=1)
+
+
+def synthetic_transition(state: Tensor, action: Tensor) -> Tensor:
+    """Apply the deterministic action-conditioned mixture transition."""
+
+    experts = ground_truth_expert_outputs(state, action)
+    alpha = true_routing_weights(action)
+    return torch.sum(alpha.unsqueeze(-1) * experts, dim=1)
+
+
+def ground_truth_expert_action_jacobians(state: Tensor) -> Tensor:
+    """Analytic d F_gt_k / d a with shape [batch, 3, 4, 2]."""
+
+    if state.ndim != 2 or state.shape[-1] != STATE_DIM:
+        raise ValueError(f"state must have shape [batch, {STATE_DIM}]")
+
+    batch_size = state.shape[0]
+    result = state.new_zeros((batch_size, NUM_EXPERTS, STATE_DIM, ACTION_DIM))
+    result[:, 0, 0, 0] = 0.20
+    result[:, 0, 1, 1] = 0.20
+
+    result[:, 1, 2, 0] = 0.20 * (1.0 + 0.3 * torch.tanh(state[:, 0]))
+    result[:, 1, 3, 1] = 0.20 * (1.0 + 0.3 * torch.tanh(state[:, 1]))
+
+    result[:, 2, 0, 1] = 0.15
+    result[:, 2, 1, 0] = -0.15
+    result[:, 2, 2, 1] = (
+        0.10 * (1.0 + 0.3 * torch.tanh(state[:, 2]))
+    )
+    result[:, 2, 3, 0] = (
+        -0.10 * (1.0 + 0.3 * torch.tanh(state[:, 3]))
+    )
+    return result
+
+
+def action_is_heldout(action: Tensor) -> Tensor:
+    """Return the per-sample center-region membership mask."""
+
+    return torch.all(action.abs() < HELDOUT_ACTION_BOUND, dim=-1)
+
+
+def sample_actions(
+    sample_count: int,
+    region: ActionRegion,
+    *,
+    generator: torch.Generator,
+    dtype: torch.dtype = torch.float32,
+) -> Tensor:
+    """Sample actions from either the excluded center or its IID complement."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count must be positive")
+    if region == "heldout":
+        inner_bound = HELDOUT_ACTION_BOUND - torch.finfo(dtype).eps
+        return (
+            torch.rand((sample_count, ACTION_DIM), generator=generator, dtype=dtype)
+            * (2.0 * inner_bound)
+            - inner_bound
+        )
+    if region != "iid":
+        raise ValueError(f"unknown action region: {region}")
+
+    accepted: list[Tensor] = []
+    remaining = sample_count
+    while remaining > 0:
+        candidates = (
+            torch.rand(
+                (max(remaining * 2, 32), ACTION_DIM),
+                generator=generator,
+                dtype=dtype,
+            )
+            * 2.0
+            - 1.0
+        )
+        outside = candidates[~action_is_heldout(candidates)]
+        selected = outside[:remaining]
+        accepted.append(selected)
+        remaining -= selected.shape[0]
+    return torch.cat(accepted, dim=0)
+
+
+def make_transition_batch(
+    sample_count: int,
+    region: ActionRegion,
+    *,
+    seed: int,
+    dtype: torch.dtype = torch.float32,
+) -> TransitionBatch:
+    """Generate a deterministic one-step split from a local random generator."""
+
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    state = torch.rand(
+        (sample_count, STATE_DIM), generator=generator, dtype=dtype
+    ) - 0.5
+    action = sample_actions(
+        sample_count, region, generator=generator, dtype=dtype
+    )
+    return TransitionBatch(state, action, synthetic_transition(state, action))
+
+
+def make_rollout_batch(
+    trajectory_count: int,
+    horizon: int,
+    region: ActionRegion,
+    *,
+    seed: int,
+    dtype: torch.dtype = torch.float32,
+) -> RolloutBatch:
+    """Generate deterministic ground-truth trajectories under fixed action sequences."""
+
+    if horizon <= 0:
+        raise ValueError("horizon must be positive")
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    initial_state = torch.rand(
+        (trajectory_count, STATE_DIM), generator=generator, dtype=dtype
+    ) - 0.5
+    actions = sample_actions(
+        trajectory_count * horizon,
+        region,
+        generator=generator,
+        dtype=dtype,
+    ).reshape(trajectory_count, horizon, ACTION_DIM)
+
+    state = initial_state
+    target_states = []
+    for time_index in range(horizon):
+        state = synthetic_transition(state, actions[:, time_index])
+        target_states.append(state)
+    return RolloutBatch(
+        initial_state=initial_state,
+        actions=actions,
+        target_states=torch.stack(target_states, dim=1),
+    )

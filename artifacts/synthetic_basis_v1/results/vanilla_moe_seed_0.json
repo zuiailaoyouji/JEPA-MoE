@@ -1,0 +1,50 @@
+{
+  "basis_cosine_matrix": [
+    [
+      0.36963974609375,
+      0.08650218887329102,
+      0.8367398330688477
+    ],
+    [
+      0.8910784240722657,
+      0.320206608581543,
+      0.11189720878601074
+    ],
+    [
+      0.1288035442352295,
+      0.9311955749511719,
+      0.07583155155181885
+    ]
+  ],
+  "basis_matched_cosines": [
+    0.8367398330688477,
+    0.8910784240722657,
+    0.9311955749511719
+  ],
+  "basis_matching_learned_to_ground_truth": [
+    2,
+    0,
+    1
+  ],
+  "basis_recovery_score": 0.8863379440307617,
+  "best_step": 5000,
+  "best_validation_prediction_mse": 8.424531435593963e-07,
+  "expert_pair_mean_abs_cosines": [
+    0.4145905288696289,
+    0.19875324440002443,
+    0.44953240051269533
+  ],
+  "expert_redundancy_mean_abs_cosine": 0.35429205792744956,
+  "heldout_composition_mse": 1.607218594290316e-06,
+  "heldout_composition_rollout_mse": 1.7940014166757466e-05,
+  "iid_one_step_mse": 8.373227901756763e-07,
+  "iid_rollout_mse": 8.696791557595133e-06,
+  "mean_routing_weights": [
+    0.32222528228759767,
+    0.37150736007690427,
+    0.3062673583984375
+  ],
+  "model": "vanilla_moe",
+  "seed": 0,
+  "training_seconds": 55.51655602455139
+}

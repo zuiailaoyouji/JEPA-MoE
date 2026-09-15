@@ -1,0 +1,221 @@
+"""Fixed-architecture predictors for the first JEPA-MoE experiment stage."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import NamedTuple
+
+import torch
+from torch import Tensor, nn
+
+
+STATE_DIM = 4
+ACTION_DIM = 2
+INPUT_DIM = STATE_DIM + ACTION_DIM
+NUM_EXPERTS = 3
+
+
+class PredictorOutput(NamedTuple):
+    """Common forward result for dense and MoE predictors."""
+
+    pred: Tensor
+    alpha: Tensor | None
+    expert_outputs: Tensor | None
+
+
+@dataclass(frozen=True)
+class TrainingLoss:
+    """Training objective and the statistics required by experiment logging."""
+
+    total: Tensor
+    prediction: Tensor
+    specialization: Tensor
+    jacobian_diversity: Tensor | None = None
+    activity: Tensor | None = None
+    pairwise_cosines: Tensor | None = None
+    expert_jacobian_norms: Tensor | None = None
+    routing_weights: Tensor | None = None
+
+    def logging_metrics(self) -> dict[str, Tensor]:
+        """Return detached scalar tensors suitable for a training logger."""
+
+        metrics = {
+            "total_loss": self.total.detach(),
+            "prediction_loss": self.prediction.detach(),
+            "control_jacobian_specialization_loss": self.specialization.detach(),
+        }
+        if self.jacobian_diversity is None:
+            return metrics
+
+        assert self.activity is not None
+        assert self.pairwise_cosines is not None
+        assert self.expert_jacobian_norms is not None
+        assert self.routing_weights is not None
+        metrics["jacobian_diversity_loss"] = self.jacobian_diversity.detach()
+        metrics["activity_loss"] = self.activity.detach()
+
+        pair_index = 0
+        for first in range(NUM_EXPERTS):
+            for second in range(first + 1, NUM_EXPERTS):
+                metrics[f"jacobian_cosine_{first}_{second}"] = (
+                    self.pairwise_cosines[pair_index].detach()
+                )
+                pair_index += 1
+        for expert_index in range(NUM_EXPERTS):
+            metrics[f"jacobian_norm_{expert_index}"] = (
+                self.expert_jacobian_norms[expert_index].detach()
+            )
+            metrics[f"routing_weight_{expert_index}"] = (
+                self.routing_weights[expert_index].detach()
+            )
+        return metrics
+
+
+def _validate_inputs(state: Tensor, action: Tensor) -> None:
+    if state.ndim != 2 or state.shape[-1] != STATE_DIM:
+        raise ValueError(
+            f"state must have shape [batch_size, {STATE_DIM}], got {tuple(state.shape)}"
+        )
+    if action.ndim != 2 or action.shape[-1] != ACTION_DIM:
+        raise ValueError(
+            f"action must have shape [batch_size, {ACTION_DIM}], got {tuple(action.shape)}"
+        )
+    if state.shape[0] != action.shape[0]:
+        raise ValueError("state and action must have the same batch size")
+    if state.device != action.device:
+        raise ValueError("state and action must be on the same device")
+    if state.dtype != action.dtype:
+        raise ValueError("state and action must have the same dtype")
+
+
+def _model_input(state: Tensor, action: Tensor) -> Tensor:
+    _validate_inputs(state, action)
+    return torch.cat((state, action), dim=-1)
+
+
+def next_state_mse(pred: Tensor, next_state: Tensor) -> Tensor:
+    if next_state.shape != pred.shape:
+        raise ValueError(
+            f"next_state must have shape {tuple(pred.shape)}, got {tuple(next_state.shape)}"
+        )
+    return (pred - next_state).square().mean()
+
+
+def _mlp(widths: tuple[int, ...]) -> nn.Sequential:
+    layers: list[nn.Module] = []
+    for index, (in_features, out_features) in enumerate(zip(widths, widths[1:])):
+        layers.append(nn.Linear(in_features, out_features))
+        if index < len(widths) - 2:
+            layers.append(nn.SiLU())
+    return nn.Sequential(*layers)
+
+
+class DensePredictor(nn.Module):
+    """A dense baseline with the same input and result interface as the MoE models."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.network = _mlp((INPUT_DIM, 128, 128, STATE_DIM))
+
+    def forward(self, state: Tensor, action: Tensor) -> PredictorOutput:
+        pred = self.network(_model_input(state, action))
+        return PredictorOutput(pred=pred, alpha=None, expert_outputs=None)
+
+    def training_loss(
+        self, state: Tensor, action: Tensor, next_state: Tensor
+    ) -> TrainingLoss:
+        output = self(state, action)
+        prediction = next_state_mse(output.pred, next_state)
+        specialization = prediction.new_zeros(())
+        return TrainingLoss(prediction, prediction, specialization)
+
+
+class _MoEPredictor(nn.Module):
+    """The single shared architecture definition used by both MoE conditions."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.experts = nn.ModuleList(
+            [_mlp((INPUT_DIM, 128, 128, STATE_DIM)) for _ in range(NUM_EXPERTS)]
+        )
+        self.router = _mlp((INPUT_DIM, 64, 64, NUM_EXPERTS))
+
+    def forward(self, state: Tensor, action: Tensor) -> PredictorOutput:
+        model_input = _model_input(state, action)
+        expert_outputs = torch.stack(
+            [expert(model_input) for expert in self.experts], dim=1
+        )
+        alpha = torch.softmax(self.router(model_input), dim=-1)
+
+        # This is exactly sum(alpha[:, k:k+1] * expert_output[k]) in batched form.
+        pred = torch.sum(alpha.unsqueeze(-1) * expert_outputs, dim=1)
+        return PredictorOutput(pred=pred, alpha=alpha, expert_outputs=expert_outputs)
+
+    def training_loss(
+        self, state: Tensor, action: Tensor, next_state: Tensor
+    ) -> TrainingLoss:
+        from .losses import control_jacobian_specialization_terms
+
+        output = self(state, action)
+        prediction = next_state_mse(output.pred, next_state)
+        diagnostics = control_jacobian_specialization_terms(
+            self, state, action, create_graph=False
+        )
+        return TrainingLoss(
+            total=prediction,
+            prediction=prediction,
+            specialization=diagnostics.total,
+            jacobian_diversity=diagnostics.diversity,
+            activity=diagnostics.activity,
+            pairwise_cosines=diagnostics.pairwise_cosines,
+            expert_jacobian_norms=diagnostics.expert_jacobian_norms,
+            routing_weights=diagnostics.routing_weights,
+        )
+
+
+class VanillaMoEPredictor(_MoEPredictor):
+    """MoE trained only with next-state prediction loss."""
+
+
+class JacobianMoEPredictor(_MoEPredictor):
+    """The identical MoE architecture with an added Jacobian training objective."""
+
+    def training_loss(
+        self,
+        state: Tensor,
+        action: Tensor,
+        next_state: Tensor,
+        lambda_jac: float = 0.1,
+        margin: float = 0.3,
+        min_jacobian_norm: float = 0.05,
+        beta_activity: float = 0.1,
+        eps: float = 1e-8,
+    ) -> TrainingLoss:
+        if lambda_jac < 0:
+            raise ValueError("lambda_jac must be non-negative")
+
+        from .losses import control_jacobian_specialization_terms
+
+        output = self(state, action)
+        prediction = next_state_mse(output.pred, next_state)
+        specialization_terms = control_jacobian_specialization_terms(
+            self,
+            state,
+            action,
+            create_graph=True,
+            margin=margin,
+            min_jacobian_norm=min_jacobian_norm,
+            beta_activity=beta_activity,
+            eps=eps,
+        )
+        total = prediction + lambda_jac * specialization_terms.total
+        return TrainingLoss(
+            total=total,
+            prediction=prediction,
+            specialization=specialization_terms.total,
+            jacobian_diversity=specialization_terms.diversity,
+            activity=specialization_terms.activity,
+            pairwise_cosines=specialization_terms.pairwise_cosines,
+            expert_jacobian_norms=specialization_terms.expert_jacobian_norms,
+            routing_weights=specialization_terms.routing_weights,
+        )

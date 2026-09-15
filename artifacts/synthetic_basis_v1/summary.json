@@ -1,0 +1,190 @@
+{
+  "aggregate": {
+    "dense": {
+      "best_validation_prediction_mse": {
+        "mean": 8.786191046237946e-06,
+        "std": 2.2422015667846776e-06
+      },
+      "heldout_composition_mse": {
+        "mean": 6.970812305808067e-06,
+        "std": 2.6371775218079098e-06
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 5.854572186395526e-05,
+        "std": 3.683355777353285e-05
+      },
+      "iid_one_step_mse": {
+        "mean": 8.750340975821018e-06,
+        "std": 2.2648356957929104e-06
+      },
+      "iid_rollout_mse": {
+        "mean": 2.7552489204704764e-05,
+        "std": 1.160484959150101e-05
+      }
+    },
+    "jacobian_moe": {
+      "basis_recovery_score": {
+        "mean": 0.5834181617037455,
+        "std": 0.17334083352291044
+      },
+      "best_validation_prediction_mse": {
+        "mean": 1.766401722561568e-06,
+        "std": 7.878391286907779e-07
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.1025026443862915,
+          "std": 0.03687800716897517
+        },
+        {
+          "mean": 0.09384747264862062,
+          "std": 0.028648396150907054
+        },
+        {
+          "mean": 0.09674443347930908,
+          "std": 0.04553415504256747
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.0976981835047404,
+        "std": 0.033763383343057854
+      },
+      "heldout_composition_mse": {
+        "mean": 2.82703148201108e-06,
+        "std": 2.394186756230302e-06
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 3.219779700431973e-05,
+        "std": 3.535691219922349e-05
+      },
+      "iid_one_step_mse": {
+        "mean": 1.75476195756346e-06,
+        "std": 7.736797233631124e-07
+      },
+      "iid_rollout_mse": {
+        "mean": 7.912696312740445e-06,
+        "std": 2.700302388094674e-06
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.36984202293395996,
+          "std": 0.11149564247404008
+        },
+        {
+          "mean": 0.3161691177368164,
+          "std": 0.1146621782828012
+        },
+        {
+          "mean": 0.3139888580322266,
+          "std": 0.14431209768778086
+        }
+      ]
+    },
+    "vanilla_moe": {
+      "basis_recovery_score": {
+        "mean": 0.7467557658640545,
+        "std": 0.24506409981069635
+      },
+      "best_validation_prediction_mse": {
+        "mean": 6.348950497340411e-07,
+        "std": 2.199320579684975e-07
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.19610652591705321,
+          "std": 0.13595544823220362
+        },
+        {
+          "mean": 0.1564060335922241,
+          "std": 0.06868322516639984
+        },
+        {
+          "mean": 0.23984225259780884,
+          "std": 0.18980692799151225
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.1974516040356954,
+        "std": 0.1212513507833623
+      },
+      "heldout_composition_mse": {
+        "mean": 8.803132455796002e-07,
+        "std": 4.6874856614538775e-07
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 8.048860028386116e-06,
+        "std": 5.975424855296727e-06
+      },
+      "iid_one_step_mse": {
+        "mean": 6.250145076774061e-07,
+        "std": 2.1649098163203593e-07
+      },
+      "iid_rollout_mse": {
+        "mean": 4.839341504313052e-06,
+        "std": 2.4605770801388593e-06
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.3307055879211426,
+          "std": 0.07269282546874953
+        },
+        {
+          "mean": 0.3459200947570801,
+          "std": 0.06043196727117805
+        },
+        {
+          "mean": 0.3233743159484863,
+          "std": 0.08179304487141664
+        }
+      ]
+    }
+  },
+  "config": {
+    "basis_probe_samples": 10000,
+    "batch_size": 512,
+    "beta_activity": 0.1,
+    "data_seed": 20260914,
+    "evaluation_batch_size": 2048,
+    "heldout_test_samples": 10000,
+    "iid_test_samples": 10000,
+    "jacobian_batch_size": 512,
+    "lambda_jac": 0.1,
+    "learning_rate": 0.001,
+    "margin": 0.3,
+    "min_jacobian_norm": 0.05,
+    "rollout_horizon": 25,
+    "rollout_trajectories": 10000,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "train_samples": 50000,
+    "training_steps": 5000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "support": {
+    "conditions": {
+      "higher_mean_basis_recovery": false,
+      "iid_not_more_than_5_percent_worse": false,
+      "lower_mean_expert_redundancy": true,
+      "lower_mean_heldout_one_step_mse": false,
+      "lower_mean_heldout_rollout_mse": false
+    },
+    "definition": "IID mean MSE no more than 5% worse, lower mean redundancy, higher mean basis recovery, and lower mean held-out one-step and rollout MSE.",
+    "heldout_one_step_wins": 0,
+    "heldout_rollout_wins": 1,
+    "paired_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "provides_preliminary_support": false
+  }
+}
