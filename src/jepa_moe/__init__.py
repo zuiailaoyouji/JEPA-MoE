@@ -1,5 +1,6 @@
 """Minimal MoE dynamics predictors for controlled experiments."""
 
+from .diagnostic_models import OracleExpertMoEPredictor, OracleRouterMoEPredictor
 from .jacobian import (
     ControlJacobianDecomposition,
     control_jacobian_decomposition,
@@ -45,6 +46,8 @@ __all__ = [
     "DensePredictor",
     "HELDOUT_ACTION_BOUND",
     "JacobianMoEPredictor",
+    "OracleExpertMoEPredictor",
+    "OracleRouterMoEPredictor",
     "PredictorOutput",
     "RolloutBatch",
     "TrainingLoss",

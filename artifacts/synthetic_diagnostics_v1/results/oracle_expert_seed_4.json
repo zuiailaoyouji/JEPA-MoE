@@ -1,0 +1,77 @@
+{
+  "basis_cosine_matrix": [
+    [
+      0.9999999389648437,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "basis_matched_cosines": [
+    0.9999999389648437,
+    1.0,
+    1.0
+  ],
+  "basis_matching_learned_to_ground_truth": [
+    0,
+    1,
+    2
+  ],
+  "basis_recovery_score": 0.9999999796549478,
+  "best_step": 4250,
+  "best_validation_prediction_mse": 3.132773917968734e-09,
+  "checkpoint": "artifacts/synthetic_diagnostics_v1/checkpoints/oracle_expert_seed_4.pt",
+  "condition": "oracle_expert",
+  "expert_pair_mean_abs_cosines": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "expert_redundancy_mean_abs_cosine": 0.0,
+  "heldout_composition_mse": 1.1354439720889785e-09,
+  "heldout_composition_rollout_mse": 2.408675393780868e-09,
+  "iid_one_step_mse": 3.024699208253878e-09,
+  "iid_rollout_mse": 7.105978338586283e-09,
+  "matched_router_weight_mse": 2.7693030424416066e-07,
+  "mean_routing_weights": [
+    0.31829745025634765,
+    0.3180793449401855,
+    0.3636232147216797
+  ],
+  "objective": "prediction_only",
+  "regime": "oracle_expert",
+  "router_weight_mse": 2.769303105499906e-07,
+  "routing_pair_mse_matrix": [
+    [
+      2.7856144006364045e-07,
+      0.11926627731323242,
+      0.2162549840927124
+    ],
+    [
+      0.11927324018478394,
+      2.2060523115214893e-07,
+      0.21489923706054687
+    ],
+    [
+      0.21626409454345702,
+      0.21486754837036132,
+      3.3162424151669257e-07
+    ]
+  ],
+  "seed": 4,
+  "training_seconds": 18.919369038194418,
+  "true_mean_routing_weights": [
+    0.3185358856201172,
+    0.318165478515625,
+    0.3632986434936523
+  ]
+}

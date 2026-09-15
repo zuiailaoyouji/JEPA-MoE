@@ -1,0 +1,78 @@
+{
+  "basis_cosine_matrix": [
+    [
+      0.5443144805908203,
+      0.1067941535949707,
+      0.609086376953125
+    ],
+    [
+      0.17685581855773927,
+      0.10303954086303711,
+      0.37638989868164063
+    ],
+    [
+      0.16212412490844727,
+      0.5996822265625,
+      0.049428057193756106
+    ]
+  ],
+  "basis_matched_cosines": [
+    0.5443144805908203,
+    0.37638989868164063,
+    0.5996822265625
+  ],
+  "basis_matching_learned_to_ground_truth": [
+    0,
+    2,
+    1
+  ],
+  "basis_recovery_score": 0.5067955352783203,
+  "best_step": 4750,
+  "best_validation_prediction_mse": 6.634619319811464e-07,
+  "checkpoint": "artifacts/synthetic_basis_v1/checkpoints/vanilla_moe_seed_2.pt",
+  "condition": "joint_vanilla",
+  "expert_pair_mean_abs_cosines": [
+    0.21085736885070802,
+    0.15767986602783204,
+    0.40954343872070315
+  ],
+  "expert_redundancy_mean_abs_cosine": 0.25936022453308105,
+  "heldout_composition_mse": 6.695172050967813e-07,
+  "heldout_composition_rollout_mse": 4.4159126286394896e-06,
+  "iid_one_step_mse": 6.345594301819801e-07,
+  "iid_rollout_mse": 3.3607100793160497e-06,
+  "matched_router_weight_mse": 0.03768298350175222,
+  "mean_routing_weights": [
+    0.37996695556640625,
+    0.2518648727416992,
+    0.36816816864013674
+  ],
+  "objective": "prediction_only",
+  "regime": "joint_learning",
+  "reused_joint_checkpoint": true,
+  "router_weight_mse": 0.13632686080932618,
+  "routing_pair_mse_matrix": [
+    [
+      0.05205637998580932,
+      0.15462598457336427,
+      0.07878446946144103
+    ],
+    [
+      0.15622430572509766,
+      0.1013689109802246,
+      0.03983410711288452
+    ],
+    [
+      0.07027624235153199,
+      0.021158463406562807,
+      0.25555529441833497
+    ]
+  ],
+  "seed": 2,
+  "training_seconds": 51.79772301763296,
+  "true_mean_routing_weights": [
+    0.3185358856201172,
+    0.318165478515625,
+    0.3632986434936523
+  ]
+}

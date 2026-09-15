@@ -41,6 +41,8 @@ def test_absolute_cosine_recovery_ignores_permutation_and_sign() -> None:
     )
     assert abs(metrics["basis_recovery_score"] - 1.0) < 1e-6
     assert abs(sum(metrics["mean_routing_weights"]) - 1.0) < 1e-6
+    assert metrics["router_weight_mse"] > 0.0
+    assert metrics["matched_router_weight_mse"] < 1e-14
 
 
 def test_perfect_model_has_zero_prediction_and_rollout_error() -> None:

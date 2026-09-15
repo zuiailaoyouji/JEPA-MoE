@@ -69,3 +69,25 @@ synthetic-basis-experiment --device cuda:0 --output-dir artifacts/synthetic_basi
 默认协议固定为 50,000 个训练样本、10,000 个 validation 样本、10,000 个 IID test 样本、10,000 个中心 held-out-composition 样本、长度 25 的 10,000 条 IID/held-out rollout，以及 5 个 model seeds。所有条件使用相同的 AdamW、batch 512、5,000 updates 和 batch 顺序，checkpoint 只依据 validation prediction MSE。
 
 Basis recovery 在固定的 10,000-sample probe 上评估，其中 IID 与 held-out samples 各占一半。计算 learned-vs-ground-truth `3 x 3` mean absolute Jacobian cosine matrix，再通过 Hungarian matching 获得 permutation-invariant score。完整配置、checkpoint、逐步日志、per-seed 结果与汇总报告写入指定 output directory。
+
+### 三个诊断实验
+
+在调整主实验前，可运行严格共享原数据与优化协议的诊断组：
+
+```bash
+synthetic-diagnostic-experiments \
+  --device cuda:0 \
+  --output-dir artifacts/synthetic_diagnostics_v1 \
+  --reuse-joint-from artifacts/synthetic_basis_v1
+```
+
+- `oracle_router_vanilla`：固定 `alpha = alpha_true`，只用 prediction MSE 训练 experts。
+- `oracle_router_jacobian`：同一个 oracle router，训练 experts 时额外加入 Control-Jacobian specialization。
+- `oracle_expert`：固定三个 `F_gt_k`，只用 prediction MSE 训练原结构 router。
+- `joint_vanilla` / `joint_jacobian`：router 与 experts 都自由学习，用作原 joint-learning 对照。
+
+默认会验证协议后复用 `synthetic_basis_v1` 的 joint checkpoints，并用新增的 router 指标重新评估，而不是重复训练。传入 `--train-joint` 可从头训练 joint 条件。除原有预测、rollout、redundancy 和 basis recovery 外，诊断还记录 router 相对 `alpha_true` 的 raw MSE，以及按 expert 的 Hungarian 匹配重排后的 router MSE。
+
+并行运行时，`--seeds` 定义完整共享协议，`--run-seeds` 只选择当前进程负责的 seed；因此不同 GPU 可以写入同一个 output directory，最后再运行一次完整命令汇总所有已完成结果。
+
+当前 5-seed 正式结果保存在 `artifacts/synthetic_diagnostics_v1`。诊断显示 router 和 experts 在各自的 oracle 条件下都能高精度恢复，而 joint-learning 的预测误差和 matched router MSE 显著增大，当前主要问题因此定位为两者自由协同学习时的 co-adaptation / identifiability，而不是单独的网络容量不足。具体均值、标准差和逐 seed 数据见该目录的 `report.md` 与 `summary.json`。

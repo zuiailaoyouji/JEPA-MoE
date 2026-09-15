@@ -1,0 +1,488 @@
+{
+  "aggregate": {
+    "joint_jacobian": {
+      "basis_recovery_score": {
+        "mean": 0.5834181617037455,
+        "std": 0.17334083352291044
+      },
+      "best_validation_prediction_mse": {
+        "mean": 1.766401722561568e-06,
+        "std": 7.878391286907779e-07
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.1025026443862915,
+          "std": 0.03687800716897517
+        },
+        {
+          "mean": 0.09384747264862062,
+          "std": 0.028648396150907054
+        },
+        {
+          "mean": 0.09674443347930908,
+          "std": 0.04553415504256747
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.0976981835047404,
+        "std": 0.033763383343057854
+      },
+      "heldout_composition_mse": {
+        "mean": 2.82703148201108e-06,
+        "std": 2.394186756230302e-06
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 3.219779700431973e-05,
+        "std": 3.535691219922349e-05
+      },
+      "iid_one_step_mse": {
+        "mean": 1.75476195756346e-06,
+        "std": 7.736797233631124e-07
+      },
+      "iid_rollout_mse": {
+        "mean": 7.912696312740445e-06,
+        "std": 2.700302388094674e-06
+      },
+      "matched_router_weight_mse": {
+        "mean": 0.05430232719292244,
+        "std": 0.03637114095285222
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.36984202293395996,
+          "std": 0.11149564247404008
+        },
+        {
+          "mean": 0.3161691177368164,
+          "std": 0.1146621782828012
+        },
+        {
+          "mean": 0.3139888580322266,
+          "std": 0.14431209768778086
+        }
+      ],
+      "router_weight_mse": {
+        "mean": 0.09477080217997233,
+        "std": 0.03680682038366949
+      },
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "true_mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ]
+    },
+    "joint_vanilla": {
+      "basis_recovery_score": {
+        "mean": 0.7467557658640545,
+        "std": 0.24506409981069635
+      },
+      "best_validation_prediction_mse": {
+        "mean": 6.348950497340411e-07,
+        "std": 2.199320579684975e-07
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.19610652591705321,
+          "std": 0.13595544823220362
+        },
+        {
+          "mean": 0.1564060335922241,
+          "std": 0.06868322516639984
+        },
+        {
+          "mean": 0.23984225259780884,
+          "std": 0.18980692799151225
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.1974516040356954,
+        "std": 0.1212513507833623
+      },
+      "heldout_composition_mse": {
+        "mean": 8.803132455796002e-07,
+        "std": 4.6874856614538775e-07
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 8.048860028386116e-06,
+        "std": 5.975424855296727e-06
+      },
+      "iid_one_step_mse": {
+        "mean": 6.250145076774061e-07,
+        "std": 2.1649098163203593e-07
+      },
+      "iid_rollout_mse": {
+        "mean": 4.839341504313052e-06,
+        "std": 2.4605770801388593e-06
+      },
+      "matched_router_weight_mse": {
+        "mean": 0.025143675680557885,
+        "std": 0.020066162977643763
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.3307055879211426,
+          "std": 0.07269282546874953
+        },
+        {
+          "mean": 0.3459200947570801,
+          "std": 0.06043196727117805
+        },
+        {
+          "mean": 0.3233743159484863,
+          "std": 0.08179304487141664
+        }
+      ],
+      "router_weight_mse": {
+        "mean": 0.11102472981770832,
+        "std": 0.03676864966318696
+      },
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "true_mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ]
+    },
+    "oracle_expert": {
+      "basis_recovery_score": {
+        "mean": 0.9999999796549478,
+        "std": 0.0
+      },
+      "best_validation_prediction_mse": {
+        "mean": 3.239801226300187e-09,
+        "std": 6.127136861341951e-10
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        {
+          "mean": 0.0,
+          "std": 0.0
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "heldout_composition_mse": {
+        "mean": 1.164238319688593e-09,
+        "std": 4.219708933227846e-10
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 2.2726972681084586e-09,
+        "std": 7.518649092008207e-10
+      },
+      "iid_one_step_mse": {
+        "mean": 3.1828004648559727e-09,
+        "std": 6.319654934696645e-10
+      },
+      "iid_rollout_mse": {
+        "mean": 1.0186107891786378e-08,
+        "std": 4.1937877716216454e-09
+      },
+      "matched_router_weight_mse": {
+        "mean": 2.597441520144154e-07,
+        "std": 6.342525850447457e-08
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.31854080459594725,
+          "std": 0.00021471805088105737
+        },
+        {
+          "mean": 0.31805972564697266,
+          "std": 0.00016962871138233264
+        },
+        {
+          "mean": 0.36339947006225587,
+          "std": 0.00022049121847942887
+        }
+      ],
+      "router_weight_mse": {
+        "mean": 2.597441530087963e-07,
+        "std": 6.342526010527611e-08
+      },
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "true_mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ]
+    },
+    "oracle_router_jacobian": {
+      "basis_recovery_score": {
+        "mean": 0.9926267622884115,
+        "std": 0.0029560866143729107
+      },
+      "best_validation_prediction_mse": {
+        "mean": 1.787171309115365e-07,
+        "std": 2.1788145292323007e-08
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.04456342944145203,
+          "std": 0.031060741881754804
+        },
+        {
+          "mean": 0.04869302331924438,
+          "std": 0.010977025428966648
+        },
+        {
+          "mean": 0.038354314594268794,
+          "std": 0.011656604569899504
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.043870255784988405,
+        "std": 0.015121239832846538
+      },
+      "heldout_composition_mse": {
+        "mean": 1.5150535647990182e-07,
+        "std": 4.779537640979361e-08
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 9.873174254433252e-07,
+        "std": 4.796318552164281e-07
+      },
+      "iid_one_step_mse": {
+        "mean": 1.7963549005798998e-07,
+        "std": 2.2430829795992604e-08
+      },
+      "iid_rollout_mse": {
+        "mean": 5.871273922966793e-07,
+        "std": 1.824323986925134e-07
+      },
+      "matched_router_weight_mse": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ],
+      "router_weight_mse": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "true_mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ]
+    },
+    "oracle_router_vanilla": {
+      "basis_recovery_score": {
+        "mean": 0.990257690226237,
+        "std": 0.004010785286940011
+      },
+      "best_validation_prediction_mse": {
+        "mean": 1.4577984838979318e-07,
+        "std": 2.597513764383849e-08
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.05443096940994263,
+          "std": 0.03318415463818448
+        },
+        {
+          "mean": 0.08179886962890624,
+          "std": 0.027506970964645563
+        },
+        {
+          "mean": 0.04939013855934143,
+          "std": 0.024701186741513916
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.061873325866063436,
+        "std": 0.015963972976700474
+      },
+      "heldout_composition_mse": {
+        "mean": 1.6490580252138896e-07,
+        "std": 4.4861615764833285e-08
+      },
+      "heldout_composition_rollout_mse": {
+        "mean": 1.2328465709462762e-06,
+        "std": 6.333398593175063e-07
+      },
+      "iid_one_step_mse": {
+        "mean": 1.4527106570312753e-07,
+        "std": 2.655279532388074e-08
+      },
+      "iid_rollout_mse": {
+        "mean": 5.105653681210243e-07,
+        "std": 1.8714134017636416e-07
+      },
+      "matched_router_weight_mse": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ],
+      "router_weight_mse": {
+        "mean": 0.0,
+        "std": 0.0
+      },
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "true_mean_routing_weights": [
+        {
+          "mean": 0.3185358856201172,
+          "std": 0.0
+        },
+        {
+          "mean": 0.318165478515625,
+          "std": 0.0
+        },
+        {
+          "mean": 0.3632986434936523,
+          "std": 0.0
+        }
+      ]
+    }
+  },
+  "config": {
+    "basis_probe_samples": 10000,
+    "batch_size": 512,
+    "beta_activity": 0.1,
+    "data_seed": 20260914,
+    "evaluation_batch_size": 2048,
+    "heldout_test_samples": 10000,
+    "iid_test_samples": 10000,
+    "jacobian_batch_size": 512,
+    "lambda_jac": 0.1,
+    "learning_rate": 0.001,
+    "margin": 0.3,
+    "min_jacobian_norm": 0.05,
+    "rollout_horizon": 25,
+    "rollout_trajectories": 10000,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "train_samples": 50000,
+    "training_steps": 5000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "diagnosis": {
+    "conclusion": "Experts and router are each recoverable in isolation; the large joint-to-oracle error and router-MSE gaps identify joint co-adaptation/identifiability as the dominant failure mode under this protocol.",
+    "joint_over_matching_oracle_router": {
+      "jacobian_heldout_mse_ratio": 18.659614073685272,
+      "jacobian_iid_mse_ratio": 9.768459211467551,
+      "vanilla_heldout_mse_ratio": 5.338279382045516,
+      "vanilla_iid_mse_ratio": 4.302401890233742
+    },
+    "oracle_router_jacobian_over_vanilla": {
+      "basis_recovery_score": 1.0023923793630254,
+      "expert_redundancy_mean_abs_cosine": 0.7090334190205632,
+      "heldout_composition_mse": 0.9187387839809393,
+      "heldout_composition_rollout_mse": 0.8008437130059954,
+      "iid_one_step_mse": 1.2365538119276192
+    },
+    "router_learning": {
+      "joint_jacobian_matched_router_mse": 0.05430232719292244,
+      "joint_vanilla_matched_router_mse": 0.025143675680557885,
+      "oracle_expert_router_mse": 2.597441530087963e-07
+    }
+  }
+}

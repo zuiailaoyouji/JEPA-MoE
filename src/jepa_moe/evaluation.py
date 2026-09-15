@@ -16,6 +16,7 @@ from .synthetic import (
     RolloutBatch,
     TransitionBatch,
     ground_truth_expert_action_jacobians,
+    true_routing_weights,
 )
 
 
@@ -86,6 +87,11 @@ def expert_jacobian_metrics(
     pair_indices = ((0, 1), (0, 2), (1, 2))
     pair_abs_cosine_sums = torch.zeros(len(pair_indices), dtype=torch.float64)
     routing_sums = torch.zeros(NUM_EXPERTS, dtype=torch.float64)
+    true_routing_sums = torch.zeros(NUM_EXPERTS, dtype=torch.float64)
+    raw_routing_squared_error = torch.zeros((), dtype=torch.float64)
+    routing_pair_squared_error = torch.zeros(
+        (NUM_EXPERTS, NUM_EXPERTS), dtype=torch.float64
+    )
     recovery_abs_cosine_sum = torch.zeros(
         (NUM_EXPERTS, NUM_EXPERTS), dtype=torch.float64
     )
@@ -117,7 +123,15 @@ def expert_jacobian_metrics(
             alpha = model(state, action).alpha
         if alpha is None:
             raise TypeError("expert_jacobian_metrics requires an MoE predictor")
+        alpha_true = true_routing_weights(action)
         routing_sums += alpha.sum(dim=0).double().cpu()
+        true_routing_sums += alpha_true.sum(dim=0).double().cpu()
+        raw_routing_squared_error += (
+            alpha - alpha_true
+        ).square().sum().double().cpu()
+        routing_pair_squared_error += (
+            alpha.unsqueeze(-1) - alpha_true.unsqueeze(1)
+        ).square().sum(dim=0).double().cpu()
         sample_count += state.shape[0]
 
     cosine_matrix = recovery_abs_cosine_sum / sample_count
@@ -127,11 +141,22 @@ def expert_jacobian_metrics(
     matched_cosines = cosine_matrix[learned_indices, ground_truth_indices]
     pair_values = pair_abs_cosine_sums / sample_count
     routing_values = routing_sums / sample_count
+    true_routing_values = true_routing_sums / sample_count
+    routing_pair_mse = routing_pair_squared_error / sample_count
+    matched_routing_mse = routing_pair_mse[
+        learned_indices, ground_truth_indices
+    ].mean()
 
     return {
         "expert_pair_mean_abs_cosines": pair_values.tolist(),
         "expert_redundancy_mean_abs_cosine": pair_values.mean().item(),
         "mean_routing_weights": routing_values.tolist(),
+        "true_mean_routing_weights": true_routing_values.tolist(),
+        "router_weight_mse": (
+            raw_routing_squared_error / (sample_count * NUM_EXPERTS)
+        ).item(),
+        "matched_router_weight_mse": matched_routing_mse.item(),
+        "routing_pair_mse_matrix": routing_pair_mse.tolist(),
         "basis_cosine_matrix": cosine_matrix.tolist(),
         "basis_matching_learned_to_ground_truth": [
             int(index) for index in ground_truth_indices.tolist()
