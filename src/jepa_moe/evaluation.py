@@ -1,8 +1,9 @@
-"""Evaluation metrics for synthetic basis recovery and unseen composition."""
+"""Prediction, routing, and dynamics-dictionary evaluation metrics."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
+import math
 from typing import Any
 
 import torch
@@ -81,7 +82,7 @@ def expert_jacobian_metrics(
     batch_size: int,
     eps: float = 1e-8,
 ) -> dict[str, Any]:
-    """Measure redundancy, routing, and permutation-invariant basis recovery."""
+    """Measure redundancy, routing, subspace coverage, and auxiliary matching."""
 
     model.eval()
     pair_indices = ((0, 1), (0, 2), (1, 2))
@@ -92,6 +93,9 @@ def expert_jacobian_metrics(
     routing_pair_squared_error = torch.zeros(
         (NUM_EXPERTS, NUM_EXPERTS), dtype=torch.float64
     )
+    sample_routing_entropy_sum = torch.zeros((), dtype=torch.float64)
+    principal_angle_cosine_sums = torch.zeros(NUM_EXPERTS, dtype=torch.float64)
+    projection_error_sum = torch.zeros((), dtype=torch.float64)
     recovery_abs_cosine_sum = torch.zeros(
         (NUM_EXPERTS, NUM_EXPERTS), dtype=torch.float64
     )
@@ -100,18 +104,45 @@ def expert_jacobian_metrics(
     for batch_slice in _slices(len(data), batch_size):
         state = data.state[batch_slice].to(device)
         action = data.action[batch_slice].to(device)
-        learned = expert_action_jacobians(
+        learned_flat = expert_action_jacobians(
             model, state, action, create_graph=False
         ).flatten(start_dim=2)
-        learned = F.normalize(learned, p=2, dim=-1, eps=eps)
+        learned = F.normalize(learned_flat, p=2, dim=-1, eps=eps)
 
-        ground_truth = ground_truth_expert_action_jacobians(state).flatten(
+        ground_truth_flat = ground_truth_expert_action_jacobians(state).flatten(
             start_dim=2
         )
-        ground_truth = F.normalize(ground_truth, p=2, dim=-1, eps=eps)
+        ground_truth = F.normalize(ground_truth_flat, p=2, dim=-1, eps=eps)
         recovery_abs_cosine_sum += torch.einsum(
             "blf,bgf->blg", learned, ground_truth
         ).abs().sum(dim=0).double().cpu()
+
+        learned64 = learned.double()
+        ground_truth64 = ground_truth.double()
+        learned_u, learned_s, learned_vh = torch.linalg.svd(
+            learned64, full_matrices=False
+        )
+        del learned_u
+        ground_truth_vh = torch.linalg.svd(
+            ground_truth64, full_matrices=False
+        ).Vh
+        rank_threshold = learned_s[:, :1] * 1e-5
+        learned_rank_mask = learned_s > rank_threshold
+        learned_basis = learned_vh * learned_rank_mask.unsqueeze(-1)
+        principal_cosines = torch.linalg.svdvals(
+            learned_basis @ ground_truth_vh.transpose(-2, -1)
+        ).clamp(0.0, 1.0)
+        principal_angle_cosine_sums += principal_cosines.sum(dim=0).cpu()
+
+        learned_pinv = torch.linalg.pinv(learned64, rtol=1e-5)
+        reconstructed_ground_truth = (
+            ground_truth64 @ learned_pinv @ learned64
+        )
+        projection_error = (
+            (ground_truth64 - reconstructed_ground_truth).square().sum(dim=(-2, -1))
+            / (ground_truth64.square().sum(dim=(-2, -1)) + eps)
+        )
+        projection_error_sum += projection_error.sum().cpu()
 
         for pair_index, (first, second) in enumerate(pair_indices):
             cosine = torch.sum(
@@ -132,6 +163,9 @@ def expert_jacobian_metrics(
         routing_pair_squared_error += (
             alpha.unsqueeze(-1) - alpha_true.unsqueeze(1)
         ).square().sum(dim=0).double().cpu()
+        sample_routing_entropy_sum += (
+            -(alpha * alpha.clamp_min(eps).log()).sum(dim=-1).sum().double().cpu()
+        )
         sample_count += state.shape[0]
 
     cosine_matrix = recovery_abs_cosine_sum / sample_count
@@ -146,11 +180,26 @@ def expert_jacobian_metrics(
     matched_routing_mse = routing_pair_mse[
         learned_indices, ground_truth_indices
     ].mean()
+    maximum_entropy = math.log(NUM_EXPERTS)
+    mean_sample_routing_entropy = (sample_routing_entropy_sum / sample_count).item()
+    routing_usage_entropy = (
+        -(routing_values * routing_values.clamp_min(eps).log()).sum().item()
+    )
+    principal_angle_cosines = principal_angle_cosine_sums / sample_count
 
     return {
         "expert_pair_mean_abs_cosines": pair_values.tolist(),
         "expert_redundancy_mean_abs_cosine": pair_values.mean().item(),
         "mean_routing_weights": routing_values.tolist(),
+        "minimum_mean_routing_weight": routing_values.min().item(),
+        "maximum_mean_routing_weight": routing_values.max().item(),
+        "mean_sample_routing_entropy": mean_sample_routing_entropy,
+        "normalized_mean_sample_routing_entropy": (
+            mean_sample_routing_entropy / maximum_entropy
+        ),
+        "routing_usage_entropy": routing_usage_entropy,
+        "normalized_routing_usage_entropy": routing_usage_entropy / maximum_entropy,
+        "routing_effective_experts": math.exp(routing_usage_entropy),
         "true_mean_routing_weights": true_routing_values.tolist(),
         "router_weight_mse": (
             raw_routing_squared_error / (sample_count * NUM_EXPERTS)
@@ -163,7 +212,56 @@ def expert_jacobian_metrics(
         ],
         "basis_matched_cosines": matched_cosines.tolist(),
         "basis_recovery_score": matched_cosines.mean().item(),
+        "dynamics_subspace_principal_angle_cosines": (
+            principal_angle_cosines.tolist()
+        ),
+        "dynamics_subspace_principal_cosine_similarity": (
+            principal_angle_cosines.mean().item()
+        ),
+        "dynamics_subspace_projection_reconstruction_error": (
+            projection_error_sum / sample_count
+        ).item(),
     }
+
+
+def evaluate_iid_predictor(
+    model: nn.Module,
+    *,
+    iid_test: TransitionBatch,
+    iid_rollout: RolloutBatch,
+    basis_probe: TransitionBatch,
+    device: torch.device,
+    prediction_batch_size: int,
+    jacobian_batch_size: int,
+) -> dict[str, Any]:
+    """Run the full-IID metrics used by the revised first experiment."""
+
+    metrics: dict[str, Any] = {
+        "iid_one_step_mse": one_step_mse(
+            model, iid_test, device=device, batch_size=prediction_batch_size
+        ),
+        "iid_rollout_mse": rollout_mse(
+            model, iid_rollout, device=device, batch_size=prediction_batch_size
+        ),
+    }
+    with torch.no_grad():
+        has_router = (
+            model(
+                state=basis_probe.state[:1].to(device),
+                action=basis_probe.action[:1].to(device),
+            ).alpha
+            is not None
+        )
+    if has_router:
+        metrics.update(
+            expert_jacobian_metrics(
+                model,
+                basis_probe,
+                device=device,
+                batch_size=jacobian_batch_size,
+            )
+        )
+    return metrics
 
 
 def evaluate_predictor(

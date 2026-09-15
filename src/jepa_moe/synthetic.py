@@ -12,7 +12,7 @@ from .models import ACTION_DIM, NUM_EXPERTS, STATE_DIM
 
 
 HELDOUT_ACTION_BOUND = 0.35
-ActionRegion = Literal["iid", "heldout"]
+ActionRegion = Literal["full", "iid", "heldout"]
 
 
 @dataclass(frozen=True)
@@ -134,10 +134,18 @@ def sample_actions(
     generator: torch.Generator,
     dtype: torch.dtype = torch.float32,
 ) -> Tensor:
-    """Sample actions from either the excluded center or its IID complement."""
+    """Sample full IID actions or either legacy diagnostic action region."""
 
     if sample_count <= 0:
         raise ValueError("sample_count must be positive")
+    if region == "full":
+        return (
+            torch.rand(
+                (sample_count, ACTION_DIM), generator=generator, dtype=dtype
+            )
+            * 2.0
+            - 1.0
+        )
     if region == "heldout":
         inner_bound = HELDOUT_ACTION_BOUND - torch.finfo(dtype).eps
         return (

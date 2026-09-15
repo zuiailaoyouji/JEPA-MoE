@@ -88,6 +88,20 @@ def test_action_regions_are_disjoint_and_deterministic() -> None:
     torch.testing.assert_close(iid_first.next_state, iid_second.next_state)
 
 
+def test_full_iid_actions_cover_center_and_outer_regions() -> None:
+    first = make_transition_batch(10_000, "full", seed=33)
+    second = make_transition_batch(10_000, "full", seed=33)
+    center = action_is_heldout(first.action)
+
+    assert center.any()
+    assert (~center).any()
+    assert torch.all(first.action >= -1.0)
+    assert torch.all(first.action <= 1.0)
+    torch.testing.assert_close(first.state, second.state)
+    torch.testing.assert_close(first.action, second.action)
+    torch.testing.assert_close(first.next_state, second.next_state)
+
+
 def test_rollout_targets_apply_transition_recurrently() -> None:
     rollout = make_rollout_batch(16, 25, "heldout", seed=41)
     state = rollout.initial_state

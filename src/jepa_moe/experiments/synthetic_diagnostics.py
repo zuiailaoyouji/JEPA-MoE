@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import json
 import math
 import os
@@ -19,18 +19,103 @@ from ..diagnostic_models import OracleExpertMoEPredictor, OracleRouterMoEPredict
 from ..evaluation import evaluate_predictor, one_step_mse
 from ..losses import control_jacobian_specialization_terms
 from ..models import JacobianMoEPredictor, VanillaMoEPredictor, next_state_mse
-from ..synthetic import TransitionBatch
+from ..synthetic import (
+    RolloutBatch,
+    TransitionBatch,
+    make_rollout_batch,
+    make_transition_batch,
+)
 from .synthetic_basis import (
-    ExperimentConfig,
-    ExperimentData,
     ShuffledBatchStream,
     _append_json_line,
     _cpu_state_dict,
     _moe_diagnostics,
     _scalar,
     _seed_everything,
-    make_experiment_data,
 )
+
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    """Frozen legacy protocol for the pre-IID oracle diagnostics."""
+
+    train_samples: int = 50_000
+    validation_samples: int = 10_000
+    iid_test_samples: int = 10_000
+    heldout_test_samples: int = 10_000
+    rollout_trajectories: int = 10_000
+    rollout_horizon: int = 25
+    basis_probe_samples: int = 10_000
+    batch_size: int = 512
+    evaluation_batch_size: int = 2_048
+    jacobian_batch_size: int = 512
+    training_steps: int = 5_000
+    validation_interval: int = 250
+    learning_rate: float = 1e-3
+    weight_decay: float = 1e-4
+    lambda_jac: float = 0.1
+    margin: float = 0.3
+    min_jacobian_norm: float = 0.05
+    beta_activity: float = 0.1
+    data_seed: int = 20_260_914
+    seeds: tuple[int, ...] = (0, 1, 2, 3, 4)
+
+
+@dataclass(frozen=True)
+class ExperimentData:
+    train: TransitionBatch
+    validation: TransitionBatch
+    iid_test: TransitionBatch
+    heldout_test: TransitionBatch
+    iid_rollout: RolloutBatch
+    heldout_rollout: RolloutBatch
+    basis_probe: TransitionBatch
+
+
+def _concatenate_batches(*batches: TransitionBatch) -> TransitionBatch:
+    return TransitionBatch(
+        state=torch.cat([batch.state for batch in batches], dim=0),
+        action=torch.cat([batch.action for batch in batches], dim=0),
+        next_state=torch.cat([batch.next_state for batch in batches], dim=0),
+    )
+
+
+def make_experiment_data(config: ExperimentConfig) -> ExperimentData:
+    """Recreate the original outer-region/center-region diagnostic splits."""
+
+    base = config.data_seed
+    iid_probe_count = config.basis_probe_samples // 2
+    heldout_probe_count = config.basis_probe_samples - iid_probe_count
+    return ExperimentData(
+        train=make_transition_batch(config.train_samples, "iid", seed=base),
+        validation=make_transition_batch(
+            config.validation_samples, "iid", seed=base + 1
+        ),
+        iid_test=make_transition_batch(
+            config.iid_test_samples, "iid", seed=base + 2
+        ),
+        heldout_test=make_transition_batch(
+            config.heldout_test_samples, "heldout", seed=base + 3
+        ),
+        iid_rollout=make_rollout_batch(
+            config.rollout_trajectories,
+            config.rollout_horizon,
+            "iid",
+            seed=base + 4,
+        ),
+        heldout_rollout=make_rollout_batch(
+            config.rollout_trajectories,
+            config.rollout_horizon,
+            "heldout",
+            seed=base + 5,
+        ),
+        basis_probe=_concatenate_batches(
+            make_transition_batch(iid_probe_count, "iid", seed=base + 6),
+            make_transition_batch(
+                heldout_probe_count, "heldout", seed=base + 7
+            ),
+        ),
+    )
 
 
 CONDITION_MODEL_CLASSES: dict[str, type[nn.Module]] = {

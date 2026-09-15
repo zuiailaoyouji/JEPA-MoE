@@ -56,23 +56,40 @@ total_loss = prediction_loss + 0.1 * specialization_loss
 
 第一阶段没有 encoder、Transformer、shared trunk/shared expert、residual prediction、Top-k/hard routing 或 history/context 输入。
 
-## Experiment 1: synthetic basis recovery
+## Experiment 1: full-IID dynamics basis quality
 
 实验入口：
 
 ```bash
-synthetic-basis-experiment --device cuda:0 --output-dir artifacts/synthetic_basis_v1
+synthetic-basis-experiment --device cuda:0 --output-dir artifacts/synthetic_iid_v1
 ```
 
 该实验是 deterministic direct next-state prediction。三个 `F_gt_k(x, a)` 直接输出 next state，`x_next = sum_k alpha_true_k F_gt_k(x, a)`；实现中不存在 vector field、`dt`、Euler 离散化、residual target 或噪声。
 
-默认协议固定为 50,000 个训练样本、10,000 个 validation 样本、10,000 个 IID test 样本、10,000 个中心 held-out-composition 样本、长度 25 的 10,000 条 IID/held-out rollout，以及 5 个 model seeds。所有条件使用相同的 AdamW、batch 512、5,000 updates 和 batch 顺序，checkpoint 只依据 validation prediction MSE。
+默认协议固定为 50,000 个训练样本、10,000 个 validation 样本、10,000 个 IID test 样本、长度 25 的 10,000 条 IID rollout，以及 5 个 model seeds。所有 split 都使用 `x ~ Uniform(-0.5, 0.5)^4`、`a ~ Uniform(-1, 1)^2`，不排除任何 action 区域。所有模型使用相同的 AdamW、batch 512、5,000 updates 和 batch 顺序，checkpoint 只依据 validation prediction MSE。Vanilla/Jacobian 在每个 seed 上具有相同初始化，唯一训练差别是后者加入 Control-Jacobian specialization。
 
-Basis recovery 在固定的 10,000-sample probe 上评估，其中 IID 与 held-out samples 各占一半。计算 learned-vs-ground-truth `3 x 3` mean absolute Jacobian cosine matrix，再通过 Hungarian matching 获得 permutation-invariant score。完整配置、checkpoint、逐步日志、per-seed 结果与汇总报告写入指定 output directory。
+主指标是 IID one-step MSE、rollout-25 MSE、expert Jacobian redundancy、routing entropy/usage 和 dynamics subspace quality。对每个样本将三个 `[4, 2]` Jacobian flatten 后组成 learned dictionary `L in R^(3x8)` 和 ground-truth dictionary `G in R^(3x8)`：
 
-### 三个诊断实验
+- principal-angle similarity 是两个 dictionary span 的三个 principal-angle cosine 的均值；rank 不足会以零 cosine 计入。
+- projection reconstruction error 为 `||G - G L^+ L||_F^2 / ||G||_F^2`，其中 `L^+` 是 Moore-Penrose 伪逆。它表示每个 GT Jacobian 用 learned Jacobian 线性组合进行最小二乘重构后的归一化残差。
+- Hungarian one-to-one cosine matching 只作为辅助诊断，不进入成功标准。
+- routing collapse 判据为最小平均 usage `< 0.05` 或 normalized aggregate usage entropy `< 0.8`。
 
-在调整主实验前，可运行严格共享原数据与优化协议的诊断组：
+方案 E 的完整成功条件是：Jacobian MoE 的 IID one-step/rollout mean MSE 均不超过 Vanilla 的 `1.05x`，redundancy 更低，principal-angle similarity 更高，projection error 更低，并且不发生 routing collapse。
+
+服务器共享时最多使用两张 GPU，例如：
+
+```bash
+synthetic-basis-experiment --device cuda:0 --run-seeds 0 2 4
+synthetic-basis-experiment --device cuda:1 --run-seeds 1 3
+synthetic-basis-experiment --device cpu  # resume 已完成结果并统一汇总
+```
+
+当前 `lambda_jac=0.1` 的 5-seed 正式结果保存在 `artifacts/synthetic_iid_v1`。Jacobian MoE 降低了 redundancy 且未发生 routing collapse，但 prediction/rollout 明显变差，principal-angle similarity 更低、projection error 更高，因此不满足方案 E 的初步支持条件。
+
+### 历史 oracle 诊断
+
+此前使用“中心 action 区域排除/held-out”协议的结果不再属于主实验，只保留为定位 joint co-adaptation 的历史诊断：
 
 ```bash
 synthetic-diagnostic-experiments \

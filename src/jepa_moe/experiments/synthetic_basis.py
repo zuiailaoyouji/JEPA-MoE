@@ -1,4 +1,4 @@
-"""Run synthetic basis-dynamics recovery and unseen-composition experiments."""
+"""Run full-IID synthetic dynamics-dictionary learning experiments."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from ..evaluation import evaluate_predictor, one_step_mse
+from ..evaluation import evaluate_iid_predictor, one_step_mse
 from ..losses import control_jacobian_specialization_terms
 from ..models import (
     DensePredictor,
@@ -45,7 +45,6 @@ class ExperimentConfig:
     train_samples: int = 50_000
     validation_samples: int = 10_000
     iid_test_samples: int = 10_000
-    heldout_test_samples: int = 10_000
     rollout_trajectories: int = 10_000
     rollout_horizon: int = 25
     basis_probe_samples: int = 10_000
@@ -69,60 +68,35 @@ class ExperimentData:
     train: TransitionBatch
     validation: TransitionBatch
     iid_test: TransitionBatch
-    heldout_test: TransitionBatch
     iid_rollout: RolloutBatch
-    heldout_rollout: RolloutBatch
     basis_probe: TransitionBatch
 
 
-def _concatenate_batches(*batches: TransitionBatch) -> TransitionBatch:
-    return TransitionBatch(
-        state=torch.cat([batch.state for batch in batches], dim=0),
-        action=torch.cat([batch.action for batch in batches], dim=0),
-        next_state=torch.cat([batch.next_state for batch in batches], dim=0),
-    )
-
-
 def make_experiment_data(config: ExperimentConfig) -> ExperimentData:
-    """Create every fixed split once so all model conditions see identical data."""
+    """Create fixed full-IID splits shared by all model conditions."""
 
     base = config.data_seed
-    train = make_transition_batch(config.train_samples, "iid", seed=base)
+    train = make_transition_batch(config.train_samples, "full", seed=base)
     validation = make_transition_batch(
-        config.validation_samples, "iid", seed=base + 1
+        config.validation_samples, "full", seed=base + 1
     )
     iid_test = make_transition_batch(
-        config.iid_test_samples, "iid", seed=base + 2
-    )
-    heldout_test = make_transition_batch(
-        config.heldout_test_samples, "heldout", seed=base + 3
+        config.iid_test_samples, "full", seed=base + 2
     )
     iid_rollout = make_rollout_batch(
         config.rollout_trajectories,
         config.rollout_horizon,
-        "iid",
-        seed=base + 4,
+        "full",
+        seed=base + 3,
     )
-    heldout_rollout = make_rollout_batch(
-        config.rollout_trajectories,
-        config.rollout_horizon,
-        "heldout",
-        seed=base + 5,
-    )
-
-    iid_probe_count = config.basis_probe_samples // 2
-    heldout_probe_count = config.basis_probe_samples - iid_probe_count
-    basis_probe = _concatenate_batches(
-        make_transition_batch(iid_probe_count, "iid", seed=base + 6),
-        make_transition_batch(heldout_probe_count, "heldout", seed=base + 7),
+    basis_probe = make_transition_batch(
+        config.basis_probe_samples, "full", seed=base + 4
     )
     return ExperimentData(
         train=train,
         validation=validation,
         iid_test=iid_test,
-        heldout_test=heldout_test,
         iid_rollout=iid_rollout,
-        heldout_rollout=heldout_rollout,
         basis_probe=basis_probe,
     )
 
@@ -324,12 +298,10 @@ def train_one_model(
     }
     torch.save(checkpoint, checkpoint_path)
 
-    metrics = evaluate_predictor(
+    metrics = evaluate_iid_predictor(
         model,
         iid_test=data.iid_test,
-        heldout_test=data.heldout_test,
         iid_rollout=data.iid_rollout,
-        heldout_rollout=data.heldout_rollout,
         basis_probe=data.basis_probe,
         device=device,
         prediction_batch_size=config.evaluation_batch_size,
@@ -360,7 +332,7 @@ def _mean_std(values: list[float]) -> dict[str, float]:
 def summarize_results(
     results: list[dict[str, Any]], config: ExperimentConfig
 ) -> dict[str, Any]:
-    """Aggregate scalar/vector metrics and make the support criterion explicit."""
+    """Aggregate full-IID metrics and evaluate the stated support criterion."""
 
     by_model = {
         model_name: sorted(
@@ -372,10 +344,14 @@ def summarize_results(
     scalar_metrics = (
         "best_validation_prediction_mse",
         "iid_one_step_mse",
-        "heldout_composition_mse",
         "iid_rollout_mse",
-        "heldout_composition_rollout_mse",
         "expert_redundancy_mean_abs_cosine",
+        "dynamics_subspace_principal_cosine_similarity",
+        "dynamics_subspace_projection_reconstruction_error",
+        "normalized_mean_sample_routing_entropy",
+        "normalized_routing_usage_entropy",
+        "routing_effective_experts",
+        "minimum_mean_routing_weight",
         "basis_recovery_score",
     )
     aggregate: dict[str, Any] = {}
@@ -385,7 +361,11 @@ def summarize_results(
             values = [float(result[metric]) for result in model_results if metric in result]
             if values:
                 model_summary[metric] = _mean_std(values)
-        for metric in ("expert_pair_mean_abs_cosines", "mean_routing_weights"):
+        for metric in (
+            "expert_pair_mean_abs_cosines",
+            "mean_routing_weights",
+            "dynamics_subspace_principal_angle_cosines",
+        ):
             vectors = [result[metric] for result in model_results if metric in result]
             if vectors:
                 model_summary[metric] = [
@@ -399,49 +379,73 @@ def summarize_results(
     common_seeds = sorted(vanilla_by_seed.keys() & jacobian_by_seed.keys())
     support: dict[str, Any] | None = None
     if common_seeds:
-        vanilla_iid = aggregate["vanilla_moe"]["iid_one_step_mse"]["mean"]
-        jacobian_iid = aggregate["jacobian_moe"]["iid_one_step_mse"]["mean"]
-        heldout_one_step_wins = sum(
-            jacobian_by_seed[seed]["heldout_composition_mse"]
-            < vanilla_by_seed[seed]["heldout_composition_mse"]
+        vanilla = aggregate["vanilla_moe"]
+        jacobian = aggregate["jacobian_moe"]
+        redundancy_wins = sum(
+            jacobian_by_seed[seed]["expert_redundancy_mean_abs_cosine"]
+            < vanilla_by_seed[seed]["expert_redundancy_mean_abs_cosine"]
             for seed in common_seeds
         )
-        heldout_rollout_wins = sum(
-            jacobian_by_seed[seed]["heldout_composition_rollout_mse"]
-            < vanilla_by_seed[seed]["heldout_composition_rollout_mse"]
+        principal_similarity_wins = sum(
+            jacobian_by_seed[seed][
+                "dynamics_subspace_principal_cosine_similarity"
+            ]
+            > vanilla_by_seed[seed][
+                "dynamics_subspace_principal_cosine_similarity"
+            ]
+            for seed in common_seeds
+        )
+        projection_error_wins = sum(
+            jacobian_by_seed[seed][
+                "dynamics_subspace_projection_reconstruction_error"
+            ]
+            < vanilla_by_seed[seed][
+                "dynamics_subspace_projection_reconstruction_error"
+            ]
             for seed in common_seeds
         )
         conditions = {
-            "iid_not_more_than_5_percent_worse": jacobian_iid <= 1.05 * vanilla_iid,
+            "iid_one_step_not_more_than_5_percent_worse": (
+                jacobian["iid_one_step_mse"]["mean"]
+                <= 1.05 * vanilla["iid_one_step_mse"]["mean"]
+            ),
+            "iid_rollout_not_more_than_5_percent_worse": (
+                jacobian["iid_rollout_mse"]["mean"]
+                <= 1.05 * vanilla["iid_rollout_mse"]["mean"]
+            ),
             "lower_mean_expert_redundancy": (
-                aggregate["jacobian_moe"]["expert_redundancy_mean_abs_cosine"]["mean"]
-                < aggregate["vanilla_moe"]["expert_redundancy_mean_abs_cosine"]["mean"]
+                jacobian["expert_redundancy_mean_abs_cosine"]["mean"]
+                < vanilla["expert_redundancy_mean_abs_cosine"]["mean"]
             ),
-            "higher_mean_basis_recovery": (
-                aggregate["jacobian_moe"]["basis_recovery_score"]["mean"]
-                > aggregate["vanilla_moe"]["basis_recovery_score"]["mean"]
+            "higher_mean_subspace_principal_similarity": (
+                jacobian["dynamics_subspace_principal_cosine_similarity"]["mean"]
+                > vanilla["dynamics_subspace_principal_cosine_similarity"]["mean"]
             ),
-            "lower_mean_heldout_one_step_mse": (
-                aggregate["jacobian_moe"]["heldout_composition_mse"]["mean"]
-                < aggregate["vanilla_moe"]["heldout_composition_mse"]["mean"]
-            ),
-            "lower_mean_heldout_rollout_mse": (
-                aggregate["jacobian_moe"][
-                    "heldout_composition_rollout_mse"
+            "lower_mean_subspace_projection_error": (
+                jacobian[
+                    "dynamics_subspace_projection_reconstruction_error"
                 ]["mean"]
-                < aggregate["vanilla_moe"][
-                    "heldout_composition_rollout_mse"
+                < vanilla[
+                    "dynamics_subspace_projection_reconstruction_error"
                 ]["mean"]
+            ),
+            "no_obvious_routing_collapse": (
+                jacobian["minimum_mean_routing_weight"]["mean"] >= 0.05
+                and jacobian["normalized_routing_usage_entropy"]["mean"] >= 0.8
             ),
         }
         support = {
             "definition": (
-                "IID mean MSE no more than 5% worse, lower mean redundancy, higher "
-                "mean basis recovery, and lower mean held-out one-step and rollout MSE."
+                "IID one-step and rollout mean MSE no more than 5% worse than "
+                "Vanilla, lower mean redundancy, higher principal-angle subspace "
+                "similarity, lower projection reconstruction error, and no routing "
+                "collapse (minimum mean usage >= 0.05 and normalized usage entropy "
+                ">= 0.8)."
             ),
             "paired_seeds": common_seeds,
-            "heldout_one_step_wins": heldout_one_step_wins,
-            "heldout_rollout_wins": heldout_rollout_wins,
+            "redundancy_wins": redundancy_wins,
+            "principal_similarity_wins": principal_similarity_wins,
+            "projection_error_wins": projection_error_wins,
             "conditions": conditions,
             "provides_preliminary_support": all(conditions.values()),
         }
@@ -454,23 +458,34 @@ def _format_metric(summary: dict[str, float] | None) -> str:
     return f"{summary['mean']:.6g} +/- {summary['std']:.3g}"
 
 
+def _format_result_metric(
+    result: dict[str, Any], metric: str, format_spec: str = ".4f"
+) -> str:
+    if metric not in result:
+        return "n/a"
+    return format(float(result[metric]), format_spec)
+
+
 def render_report(
     summary: dict[str, Any], results: list[dict[str, Any]]
 ) -> str:
     config = summary["config"]
     lines = [
-        "# Synthetic basis-dynamics recovery",
+        "# Full-IID synthetic dynamics-basis experiment",
         "",
         (
-            f"Protocol: {config['training_steps']} updates, batch {config['batch_size']}, "
-            f"AdamW lr={config['learning_rate']}, lambda_jac={config['lambda_jac']}, "
+            f"Protocol: x ~ Uniform(-0.5, 0.5)^4 and a ~ Uniform(-1, 1)^2 "
+            f"without exclusions; {config['train_samples']}/{config['validation_samples']}/"
+            f"{config['iid_test_samples']} train/validation/test samples, "
+            f"{config['training_steps']} updates, batch {config['batch_size']}, AdamW "
+            f"lr={config['learning_rate']}, lambda_jac={config['lambda_jac']}, "
             f"{len(config['seeds'])} seeds. Checkpoints selected only by validation MSE."
         ),
         "",
         "## Aggregate results",
         "",
-        "| Model | IID one-step MSE | Held-out one-step MSE | IID rollout-25 MSE | Held-out rollout-25 MSE | Redundancy | Basis recovery |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Model | IID one-step MSE | IID rollout-25 MSE | Redundancy | Subspace principal similarity | Projection error | Sample routing entropy | Usage entropy | Min usage |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     aggregate = summary["aggregate"]
     for model_name in MODEL_CLASSES:
@@ -481,11 +496,21 @@ def render_report(
                 [
                     model_name,
                     _format_metric(values.get("iid_one_step_mse")),
-                    _format_metric(values.get("heldout_composition_mse")),
                     _format_metric(values.get("iid_rollout_mse")),
-                    _format_metric(values.get("heldout_composition_rollout_mse")),
                     _format_metric(values.get("expert_redundancy_mean_abs_cosine")),
-                    _format_metric(values.get("basis_recovery_score")),
+                    _format_metric(
+                        values.get("dynamics_subspace_principal_cosine_similarity")
+                    ),
+                    _format_metric(
+                        values.get(
+                            "dynamics_subspace_projection_reconstruction_error"
+                        )
+                    ),
+                    _format_metric(
+                        values.get("normalized_mean_sample_routing_entropy")
+                    ),
+                    _format_metric(values.get("normalized_routing_usage_entropy")),
+                    _format_metric(values.get("minimum_mean_routing_weight")),
                 ]
             )
             + " |"
@@ -512,27 +537,27 @@ def render_report(
     lines.extend(
         [
             "",
+            "Hungarian one-to-one recovery remains an auxiliary diagnostic only: "
+            f"Vanilla {_format_metric(aggregate['vanilla_moe'].get('basis_recovery_score'))}; "
+            f"Jacobian {_format_metric(aggregate['jacobian_moe'].get('basis_recovery_score'))}.",
+            "",
             "## Per-seed results",
             "",
-            "| Model | Seed | Best step | IID MSE | Held-out MSE | IID rollout | Held-out rollout | Redundancy | Recovery | Routing weights |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+            "| Model | Seed | Best step | IID MSE | IID rollout | Redundancy | Principal similarity | Projection error | Sample entropy | Usage entropy | Min usage |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for result in sorted(results, key=lambda item: (item["model"], item["seed"])):
-        routing = result.get("mean_routing_weights")
-        routing_text = (
-            "[" + ", ".join(f"{value:.3f}" for value in routing) + "]"
-            if routing is not None
-            else "n/a"
-        )
         lines.append(
             f"| {result['model']} | {result['seed']} | {result['best_step']} | "
             f"{result['iid_one_step_mse']:.6g} | "
-            f"{result['heldout_composition_mse']:.6g} | "
             f"{result['iid_rollout_mse']:.6g} | "
-            f"{result['heldout_composition_rollout_mse']:.6g} | "
-            f"{result.get('expert_redundancy_mean_abs_cosine', float('nan')):.4f} | "
-            f"{result.get('basis_recovery_score', float('nan')):.4f} | {routing_text} |"
+            f"{_format_result_metric(result, 'expert_redundancy_mean_abs_cosine')} | "
+            f"{_format_result_metric(result, 'dynamics_subspace_principal_cosine_similarity')} | "
+            f"{_format_result_metric(result, 'dynamics_subspace_projection_reconstruction_error')} | "
+            f"{_format_result_metric(result, 'normalized_mean_sample_routing_entropy')} | "
+            f"{_format_result_metric(result, 'normalized_routing_usage_entropy')} | "
+            f"{_format_result_metric(result, 'minimum_mean_routing_weight')} |"
         )
 
     support = summary["support"]
@@ -546,9 +571,11 @@ def render_report(
             lines.append(f"- {'PASS' if passed else 'FAIL'}: `{name}`")
         lines.append("")
         lines.append(
-            f"Paired-seed wins: held-out one-step {support['heldout_one_step_wins']}/"
-            f"{len(support['paired_seeds'])}; held-out rollout "
-            f"{support['heldout_rollout_wins']}/{len(support['paired_seeds'])}."
+            f"Paired-seed wins: redundancy {support['redundancy_wins']}/"
+            f"{len(support['paired_seeds'])}; principal similarity "
+            f"{support['principal_similarity_wins']}/{len(support['paired_seeds'])}; "
+            f"projection error {support['projection_error_wins']}/"
+            f"{len(support['paired_seeds'])}."
         )
         lines.append("")
         lines.append(
@@ -561,24 +588,34 @@ def render_report(
         )
     lines.append("")
     lines.append(
-        "Full pairwise cosines, routing weights, recovery matrices, and Hungarian matches are preserved in `summary.json` and `results/*.json`."
+        "Full principal-angle spectra, pairwise cosines, routing statistics, "
+        "projection errors, and auxiliary Hungarian matches are preserved in "
+        "`summary.json` and `results/*.json`."
     )
     return "\n".join(lines) + "\n"
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/synthetic_basis"))
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("artifacts/synthetic_iid_v1")
+    )
     parser.add_argument("--device", default="auto")
     parser.add_argument("--models", nargs="+", choices=MODEL_CLASSES, default=list(MODEL_CLASSES))
     parser.add_argument("--seeds", nargs="+", type=int, default=list(ExperimentConfig.seeds))
+    parser.add_argument(
+        "--run-seeds",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Run only this subset while retaining --seeds as the shared protocol.",
+    )
     parser.add_argument("--training-steps", type=int, default=ExperimentConfig.training_steps)
     parser.add_argument("--validation-interval", type=int, default=ExperimentConfig.validation_interval)
     parser.add_argument("--batch-size", type=int, default=ExperimentConfig.batch_size)
     parser.add_argument("--train-samples", type=int, default=ExperimentConfig.train_samples)
     parser.add_argument("--validation-samples", type=int, default=ExperimentConfig.validation_samples)
     parser.add_argument("--iid-test-samples", type=int, default=ExperimentConfig.iid_test_samples)
-    parser.add_argument("--heldout-test-samples", type=int, default=ExperimentConfig.heldout_test_samples)
     parser.add_argument("--rollout-trajectories", type=int, default=ExperimentConfig.rollout_trajectories)
     parser.add_argument("--basis-probe-samples", type=int, default=ExperimentConfig.basis_probe_samples)
     parser.add_argument("--lambda-jac", type=float, default=ExperimentConfig.lambda_jac)
@@ -593,7 +630,6 @@ def main() -> None:
         train_samples=args.train_samples,
         validation_samples=args.validation_samples,
         iid_test_samples=args.iid_test_samples,
-        heldout_test_samples=args.heldout_test_samples,
         rollout_trajectories=args.rollout_trajectories,
         basis_probe_samples=args.basis_probe_samples,
         batch_size=args.batch_size,
@@ -606,7 +642,6 @@ def main() -> None:
         config.train_samples,
         config.validation_samples,
         config.iid_test_samples,
-        config.heldout_test_samples,
         config.rollout_trajectories,
         config.basis_probe_samples,
         config.batch_size,
@@ -614,6 +649,9 @@ def main() -> None:
         config.validation_interval,
     ) <= 0:
         raise ValueError("all sizes and training intervals must be positive")
+    run_seeds = tuple(config.seeds if args.run_seeds is None else args.run_seeds)
+    if not run_seeds or not set(run_seeds).issubset(config.seeds):
+        raise ValueError("--run-seeds must be a non-empty subset of --seeds")
 
     device = torch.device(
         "cuda" if args.device == "auto" and torch.cuda.is_available() else (
@@ -634,7 +672,7 @@ def main() -> None:
     print(f"Generating fixed datasets on CPU; training device={device}", flush=True)
     data = make_experiment_data(config)
     results: list[dict[str, Any]] = []
-    for seed in config.seeds:
+    for seed in run_seeds:
         for model_name in args.models:
             result_path = output_dir / "results" / f"{model_name}_seed_{seed}.json"
             if args.resume and result_path.exists():

@@ -1,0 +1,243 @@
+{
+  "aggregate": {
+    "dense": {
+      "best_validation_prediction_mse": {
+        "mean": 8.44499995931983e-06,
+        "std": 2.0384847457218416e-06
+      },
+      "iid_one_step_mse": {
+        "mean": 8.376957885921001e-06,
+        "std": 2.0289001474049702e-06
+      },
+      "iid_rollout_mse": {
+        "mean": 2.9131312534213068e-05,
+        "std": 5.827348283405581e-06
+      }
+    },
+    "jacobian_moe": {
+      "basis_recovery_score": {
+        "mean": 0.5649790062967937,
+        "std": 0.1851827505037759
+      },
+      "best_validation_prediction_mse": {
+        "mean": 2.0179488975554707e-06,
+        "std": 1.09467378903671e-06
+      },
+      "dynamics_subspace_principal_angle_cosines": [
+        {
+          "mean": 0.9546098599794041,
+          "std": 0.02224293665235305
+        },
+        {
+          "mean": 0.8129633091575574,
+          "std": 0.13294633781872384
+        },
+        {
+          "mean": 0.3126414190951321,
+          "std": 0.27423632989015684
+        }
+      ],
+      "dynamics_subspace_principal_cosine_similarity": {
+        "mean": 0.6934048627440312,
+        "std": 0.13643339047289624
+      },
+      "dynamics_subspace_projection_reconstruction_error": {
+        "mean": 0.41074190590110177,
+        "std": 0.15697812520154236
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.08389615734100342,
+          "std": 0.023580503239872336
+        },
+        {
+          "mean": 0.13516086418151857,
+          "std": 0.02690936292326382
+        },
+        {
+          "mean": 0.09565617099761962,
+          "std": 0.024972920875356495
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.10490439750671388,
+        "std": 0.0102705499241697
+      },
+      "iid_one_step_mse": {
+        "mean": 1.9810132193379106e-06,
+        "std": 1.059131176568222e-06
+      },
+      "iid_rollout_mse": {
+        "mean": 8.076773332431912e-06,
+        "std": 4.380117105676457e-06
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.34585343589782713,
+          "std": 0.13203852533401197
+        },
+        {
+          "mean": 0.3178721933746338,
+          "std": 0.09350579234019939
+        },
+        {
+          "mean": 0.3362743706512451,
+          "std": 0.18187621809654814
+        }
+      ],
+      "minimum_mean_routing_weight": {
+        "mean": 0.19699878890991213,
+        "std": 0.03008937113372885
+      },
+      "normalized_mean_sample_routing_entropy": {
+        "mean": 0.7867466321310692,
+        "std": 0.07256693044254887
+      },
+      "normalized_routing_usage_entropy": {
+        "mean": 0.9341249714547148,
+        "std": 0.032556465173159514
+      },
+      "routing_effective_experts": {
+        "mean": 2.79197504134877,
+        "std": 0.09880070245331228
+      }
+    },
+    "vanilla_moe": {
+      "basis_recovery_score": {
+        "mean": 0.7410555584462484,
+        "std": 0.25604495284383505
+      },
+      "best_validation_prediction_mse": {
+        "mean": 6.077334622386843e-07,
+        "std": 2.9789747029055593e-07
+      },
+      "dynamics_subspace_principal_angle_cosines": [
+        {
+          "mean": 0.9796401531143191,
+          "std": 0.024844698307405513
+        },
+        {
+          "mean": 0.879114298161956,
+          "std": 0.14517685506059763
+        },
+        {
+          "mean": 0.5917042953586475,
+          "std": 0.3869344937893821
+        }
+      ],
+      "dynamics_subspace_principal_cosine_similarity": {
+        "mean": 0.816819582211641,
+        "std": 0.1846191378020351
+      },
+      "dynamics_subspace_projection_reconstruction_error": {
+        "mean": 0.2510233007084685,
+        "std": 0.22893415573942558
+      },
+      "expert_pair_mean_abs_cosines": [
+        {
+          "mean": 0.19117016986846924,
+          "std": 0.0871113740310786
+        },
+        {
+          "mean": 0.14444977348327637,
+          "std": 0.07247921073726166
+        },
+        {
+          "mean": 0.22014728277206422,
+          "std": 0.16602144125938217
+        }
+      ],
+      "expert_redundancy_mean_abs_cosine": {
+        "mean": 0.18525574204126996,
+        "std": 0.07838971361663427
+      },
+      "iid_one_step_mse": {
+        "mean": 6.041103159077465e-07,
+        "std": 3.0002533062685946e-07
+      },
+      "iid_rollout_mse": {
+        "mean": 3.571935222810134e-06,
+        "std": 1.4243235458204529e-06
+      },
+      "mean_routing_weights": [
+        {
+          "mean": 0.3340208576965332,
+          "std": 0.0801445985415031
+        },
+        {
+          "mean": 0.3398007810974121,
+          "std": 0.06083056931971261
+        },
+        {
+          "mean": 0.32617835800170897,
+          "std": 0.09060655530944424
+        }
+      ],
+      "minimum_mean_routing_weight": {
+        "mean": 0.2524591773986816,
+        "std": 0.046533626511244555
+      },
+      "normalized_mean_sample_routing_entropy": {
+        "mean": 0.7464195096034307,
+        "std": 0.07457097465814391
+      },
+      "normalized_routing_usage_entropy": {
+        "mean": 0.9789018464679765,
+        "std": 0.020040697083174956
+      },
+      "routing_effective_experts": {
+        "mean": 2.9318298655969213,
+        "std": 0.06417941230974702
+      }
+    }
+  },
+  "config": {
+    "basis_probe_samples": 10000,
+    "batch_size": 512,
+    "beta_activity": 0.1,
+    "data_seed": 20260914,
+    "evaluation_batch_size": 2048,
+    "iid_test_samples": 10000,
+    "jacobian_batch_size": 512,
+    "lambda_jac": 0.1,
+    "learning_rate": 0.001,
+    "margin": 0.3,
+    "min_jacobian_norm": 0.05,
+    "rollout_horizon": 25,
+    "rollout_trajectories": 10000,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "train_samples": 50000,
+    "training_steps": 5000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "support": {
+    "conditions": {
+      "higher_mean_subspace_principal_similarity": false,
+      "iid_one_step_not_more_than_5_percent_worse": false,
+      "iid_rollout_not_more_than_5_percent_worse": false,
+      "lower_mean_expert_redundancy": true,
+      "lower_mean_subspace_projection_error": false,
+      "no_obvious_routing_collapse": true
+    },
+    "definition": "IID one-step and rollout mean MSE no more than 5% worse than Vanilla, lower mean redundancy, higher principal-angle subspace similarity, lower projection reconstruction error, and no routing collapse (minimum mean usage >= 0.05 and normalized usage entropy >= 0.8).",
+    "paired_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "principal_similarity_wins": 1,
+    "projection_error_wins": 1,
+    "provides_preliminary_support": false,
+    "redundancy_wins": 4
+  }
+}
