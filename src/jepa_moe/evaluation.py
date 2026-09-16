@@ -11,11 +11,14 @@ from scipy.optimize import linear_sum_assignment
 from torch import Tensor, nn
 import torch.nn.functional as F
 
-from .jacobian import expert_action_jacobians
-from .models import NUM_EXPERTS
+from .jacobian import expert_action_jacobians, predictor_action_jacobian
+from .losses import load_balance_loss
+from .models import NUM_EXPERTS, MoEPredictor
+from .objectives import sample_unit_action_directions
 from .synthetic import (
     RolloutBatch,
     TransitionBatch,
+    basis_composition_action_jacobian,
     ground_truth_expert_action_jacobians,
     true_routing_weights,
 )
@@ -72,6 +75,219 @@ def rollout_mse(
                 squared_error += (state - target).square().sum().item()
                 element_count += target.numel()
     return squared_error / element_count
+
+
+def basis_subspace_metrics(
+    learned_jacobians: Tensor,
+    ground_truth_jacobians: Tensor,
+    *,
+    eps: float = 1e-8,
+) -> dict[str, Any]:
+    """Compare dictionary spans without assigning learned experts to GT experts."""
+
+    if learned_jacobians.ndim != 4:
+        raise ValueError(
+            "learned_jacobians must have shape [batch, experts, state, action]"
+        )
+    if ground_truth_jacobians.shape != learned_jacobians.shape:
+        raise ValueError("learned and ground-truth Jacobians must have the same shape")
+
+    learned = F.normalize(
+        learned_jacobians.flatten(start_dim=2), p=2, dim=-1, eps=eps
+    ).double()
+    ground_truth = F.normalize(
+        ground_truth_jacobians.flatten(start_dim=2), p=2, dim=-1, eps=eps
+    ).double()
+    _, learned_s, learned_vh = torch.linalg.svd(learned, full_matrices=False)
+    ground_truth_vh = torch.linalg.svd(
+        ground_truth, full_matrices=False
+    ).Vh
+    rank_threshold = learned_s[:, :1] * 1e-5
+    learned_basis = learned_vh * (learned_s > rank_threshold).unsqueeze(-1)
+    principal_cosines = torch.linalg.svdvals(
+        learned_basis @ ground_truth_vh.transpose(-2, -1)
+    ).clamp(0.0, 1.0)
+
+    learned_pinv = torch.linalg.pinv(learned, rtol=1e-5)
+    reconstructed_ground_truth = ground_truth @ learned_pinv @ learned
+    projection_error = (
+        (ground_truth - reconstructed_ground_truth).square().sum(dim=(-2, -1))
+        / (ground_truth.square().sum(dim=(-2, -1)) + eps)
+    )
+    mean_principal_cosines = principal_cosines.mean(dim=0)
+    return {
+        "dynamics_subspace_principal_angle_cosines": (
+            mean_principal_cosines.detach().cpu().tolist()
+        ),
+        "dynamics_subspace_principal_cosine_similarity": float(
+            mean_principal_cosines.mean().detach().cpu()
+        ),
+        "dynamics_subspace_projection_reconstruction_error": float(
+            projection_error.mean().detach().cpu()
+        ),
+    }
+
+
+def experiment1_response_metrics(
+    model: nn.Module,
+    data: TransitionBatch,
+    *,
+    device: torch.device,
+    batch_size: int,
+    direction_seed: int,
+) -> dict[str, Any]:
+    """Evaluate local response, full Jacobian, subspace, and routing metrics."""
+
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    model.eval()
+    directions = sample_unit_action_directions(
+        len(data),
+        data.action.shape[-1],
+        generator=torch.Generator(device="cpu").manual_seed(direction_seed),
+        dtype=data.action.dtype,
+    )
+    directional_error_sum = torch.zeros((), dtype=torch.float64)
+    jacobian_error_sum = torch.zeros((), dtype=torch.float64)
+    principal_cosine_sum: Tensor | None = None
+    projection_error_sum = torch.zeros((), dtype=torch.float64)
+    routing_sum: Tensor | None = None
+    sample_count = 0
+
+    for batch_slice in _slices(len(data), batch_size):
+        state = data.state[batch_slice].to(device)
+        action = data.action[batch_slice].to(device)
+        direction = directions[batch_slice].to(device)
+        predictor_jacobian = predictor_action_jacobian(model, state, action)
+        target_jacobian = basis_composition_action_jacobian(state, action)
+        with torch.no_grad():
+            output = model(state, action)
+
+        if output.alpha is None:
+            predicted_response = torch.einsum(
+                "bsa,ba->bs", predictor_jacobian, direction
+            )
+        else:
+            learned_jacobians = expert_action_jacobians(
+                model, state, action, create_graph=False
+            )
+            if isinstance(model, MoEPredictor) and model.router_input == "state":
+                predicted_response = torch.einsum(
+                    "bk,bksa,ba->bs",
+                    output.alpha,
+                    learned_jacobians,
+                    direction,
+                )
+            else:
+                predicted_response = torch.einsum(
+                    "bsa,ba->bs", predictor_jacobian, direction
+                )
+
+            subspace = basis_subspace_metrics(
+                learned_jacobians,
+                ground_truth_expert_action_jacobians(state),
+            )
+            batch_count = state.shape[0]
+            principal = torch.tensor(
+                subspace["dynamics_subspace_principal_angle_cosines"],
+                dtype=torch.float64,
+            )
+            if principal_cosine_sum is None:
+                principal_cosine_sum = torch.zeros_like(principal)
+            principal_cosine_sum += principal * batch_count
+            projection_error_sum += (
+                subspace["dynamics_subspace_projection_reconstruction_error"]
+                * batch_count
+            )
+            batch_routing_sum = output.alpha.sum(dim=0).double().cpu()
+            if routing_sum is None:
+                routing_sum = torch.zeros_like(batch_routing_sum)
+            routing_sum += batch_routing_sum
+
+        target_response = torch.einsum(
+            "bsa,ba->bs", target_jacobian, direction
+        )
+        directional_error_sum += (
+            predicted_response - target_response
+        ).square().sum().double().cpu()
+        jacobian_error_sum += (
+            predictor_jacobian - target_jacobian
+        ).square().sum().double().cpu()
+        sample_count += state.shape[0]
+
+    metrics: dict[str, Any] = {
+        "directional_response_mse": (directional_error_sum / sample_count).item(),
+        "jacobian_frobenius_mse": (jacobian_error_sum / sample_count).item(),
+        "dynamics_subspace_principal_angle_cosines": None,
+        "dynamics_subspace_principal_cosine_similarity": None,
+        "dynamics_subspace_projection_reconstruction_error": None,
+        "mean_expert_usage": None,
+        "routing_entropy": None,
+        "normalized_routing_entropy": None,
+        "routing_effective_experts": None,
+        "load_balance_loss": None,
+    }
+    if routing_sum is not None and principal_cosine_sum is not None:
+        mean_usage = routing_sum / sample_count
+        routing_entropy = -(
+            mean_usage * mean_usage.clamp_min(1e-8).log()
+        ).sum()
+        mean_principal = principal_cosine_sum / sample_count
+        metrics.update(
+            {
+                "dynamics_subspace_principal_angle_cosines": mean_principal.tolist(),
+                "dynamics_subspace_principal_cosine_similarity": float(
+                    mean_principal.mean()
+                ),
+                "dynamics_subspace_projection_reconstruction_error": float(
+                    projection_error_sum / sample_count
+                ),
+                "mean_expert_usage": mean_usage.tolist(),
+                "routing_entropy": float(routing_entropy),
+                "normalized_routing_entropy": float(
+                    routing_entropy / math.log(len(mean_usage))
+                ),
+                "routing_effective_experts": math.exp(float(routing_entropy)),
+                "load_balance_loss": float(
+                    load_balance_loss(mean_usage.unsqueeze(0))
+                ),
+            }
+        )
+    return metrics
+
+
+def evaluate_experiment1_model(
+    model: nn.Module,
+    *,
+    iid_test: TransitionBatch,
+    rollout_25: RolloutBatch,
+    device: torch.device,
+    prediction_batch_size: int,
+    jacobian_batch_size: int,
+    direction_seed: int,
+) -> dict[str, Any]:
+    """Return the complete JSON-compatible metric set for Experiment 1."""
+
+    if rollout_25.actions.shape[1] != 25:
+        raise ValueError("rollout_25 must have horizon 25")
+    metrics = {
+        "iid_one_step_mse": one_step_mse(
+            model, iid_test, device=device, batch_size=prediction_batch_size
+        ),
+        "rollout_25_mse": rollout_mse(
+            model, rollout_25, device=device, batch_size=prediction_batch_size
+        ),
+    }
+    metrics.update(
+        experiment1_response_metrics(
+            model,
+            iid_test,
+            device=device,
+            batch_size=jacobian_batch_size,
+            direction_seed=direction_seed,
+        )
+    )
+    return metrics
 
 
 def expert_jacobian_metrics(

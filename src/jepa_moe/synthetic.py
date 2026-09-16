@@ -47,12 +47,22 @@ def _validate_state_action(state: Tensor, action: Tensor) -> None:
 
 
 def true_routing_weights(action: Tensor) -> Tensor:
-    """Return action-conditioned ground-truth mixture weights [batch, 3]."""
+    """Return legacy action-conditioned ground-truth weights [batch, 3]."""
 
     if action.ndim != 2 or action.shape[-1] != ACTION_DIM:
         raise ValueError(f"action must have shape [batch, {ACTION_DIM}]")
     a0, a1 = action.unbind(dim=-1)
     logits = torch.stack((2.0 * a0, 2.0 * a1, -2.0 * (a0 + a1)), dim=-1)
+    return torch.softmax(logits, dim=-1)
+
+
+def basis_composition_weights(state: Tensor) -> Tensor:
+    """Return Experiment 1 state-conditioned mixture weights [batch, 3]."""
+
+    if state.ndim != 2 or state.shape[-1] != STATE_DIM:
+        raise ValueError(f"state must have shape [batch, {STATE_DIM}]")
+    x0, x1 = state[:, 0], state[:, 1]
+    logits = torch.stack((2.0 * x0, 2.0 * x1, -2.0 * (x0 + x1)), dim=-1)
     return torch.softmax(logits, dim=-1)
 
 
@@ -89,10 +99,18 @@ def ground_truth_expert_outputs(state: Tensor, action: Tensor) -> Tensor:
 
 
 def synthetic_transition(state: Tensor, action: Tensor) -> Tensor:
-    """Apply the deterministic action-conditioned mixture transition."""
+    """Apply the legacy deterministic action-conditioned mixture transition."""
 
     experts = ground_truth_expert_outputs(state, action)
     alpha = true_routing_weights(action)
+    return torch.sum(alpha.unsqueeze(-1) * experts, dim=1)
+
+
+def basis_composition_transition(state: Tensor, action: Tensor) -> Tensor:
+    """Apply the Experiment 1 deterministic state-conditioned transition."""
+
+    experts = ground_truth_expert_outputs(state, action)
+    alpha = basis_composition_weights(state)
     return torch.sum(alpha.unsqueeze(-1) * experts, dim=1)
 
 
@@ -119,6 +137,15 @@ def ground_truth_expert_action_jacobians(state: Tensor) -> Tensor:
         -0.10 * (1.0 + 0.3 * torch.tanh(state[:, 3]))
     )
     return result
+
+
+def basis_composition_action_jacobian(state: Tensor, action: Tensor) -> Tensor:
+    """Return d F_true(x, a) / d a for the state-conditioned environment."""
+
+    _validate_state_action(state, action)
+    expert_jacobians = ground_truth_expert_action_jacobians(state)
+    alpha = basis_composition_weights(state)
+    return torch.einsum("bk,bksa->bsa", alpha, expert_jacobians)
 
 
 def action_is_heldout(action: Tensor) -> Tensor:
@@ -194,6 +221,30 @@ def make_transition_batch(
     return TransitionBatch(state, action, synthetic_transition(state, action))
 
 
+def make_basis_composition_transition_batch(
+    sample_count: int,
+    *,
+    seed: int,
+    dtype: torch.dtype = torch.float32,
+) -> TransitionBatch:
+    """Generate a reproducible full-IID split for the new Experiment 1."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count must be positive")
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    state = torch.rand(
+        (sample_count, STATE_DIM), generator=generator, dtype=dtype
+    ) - 0.5
+    action = sample_actions(
+        sample_count, "full", generator=generator, dtype=dtype
+    )
+    return TransitionBatch(
+        state,
+        action,
+        basis_composition_transition(state, action),
+    )
+
+
 def make_rollout_batch(
     trajectory_count: int,
     horizon: int,
@@ -221,6 +272,40 @@ def make_rollout_batch(
     target_states = []
     for time_index in range(horizon):
         state = synthetic_transition(state, actions[:, time_index])
+        target_states.append(state)
+    return RolloutBatch(
+        initial_state=initial_state,
+        actions=actions,
+        target_states=torch.stack(target_states, dim=1),
+    )
+
+
+def make_basis_composition_rollout_batch(
+    trajectory_count: int,
+    horizon: int,
+    *,
+    seed: int,
+    dtype: torch.dtype = torch.float32,
+) -> RolloutBatch:
+    """Generate deterministic full-IID rollouts for the new Experiment 1."""
+
+    if trajectory_count <= 0 or horizon <= 0:
+        raise ValueError("trajectory_count and horizon must be positive")
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    initial_state = torch.rand(
+        (trajectory_count, STATE_DIM), generator=generator, dtype=dtype
+    ) - 0.5
+    actions = sample_actions(
+        trajectory_count * horizon,
+        "full",
+        generator=generator,
+        dtype=dtype,
+    ).reshape(trajectory_count, horizon, ACTION_DIM)
+
+    state = initial_state
+    target_states = []
+    for time_index in range(horizon):
+        state = basis_composition_transition(state, actions[:, time_index])
         target_states.append(state)
     return RolloutBatch(
         initial_state=initial_state,

@@ -160,6 +160,8 @@ def test_vanilla_and_jacobian_only_differ_in_training_loss() -> None:
     expected_metrics = {
         "total_loss",
         "prediction_loss",
+        "control_response_loss",
+        "load_balance_loss",
         "control_jacobian_specialization_loss",
         "jacobian_diversity_loss",
         "activity_loss",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 import torch
 from torch import Tensor, nn
@@ -13,6 +13,8 @@ STATE_DIM = 4
 ACTION_DIM = 2
 INPUT_DIM = STATE_DIM + ACTION_DIM
 NUM_EXPERTS = 3
+RouterInput = Literal["state", "state_action"]
+Experiment1ModelName = Literal["dense", "moe_a", "moe_s", "ours"]
 
 
 class PredictorOutput(NamedTuple):
@@ -25,11 +27,13 @@ class PredictorOutput(NamedTuple):
 
 @dataclass(frozen=True)
 class TrainingLoss:
-    """Training objective and the statistics required by experiment logging."""
+    """Raw Experiment 1 losses plus optional legacy diagnostics."""
 
     total: Tensor
     prediction: Tensor
-    specialization: Tensor
+    control_response: Tensor
+    balance: Tensor
+    specialization: Tensor | None = None
     jacobian_diversity: Tensor | None = None
     activity: Tensor | None = None
     pairwise_cosines: Tensor | None = None
@@ -42,8 +46,14 @@ class TrainingLoss:
         metrics = {
             "total_loss": self.total.detach(),
             "prediction_loss": self.prediction.detach(),
-            "control_jacobian_specialization_loss": self.specialization.detach(),
+            "control_response_loss": self.control_response.detach(),
+            "load_balance_loss": self.balance.detach(),
         }
+        if self.specialization is None:
+            return metrics
+        metrics["control_jacobian_specialization_loss"] = (
+            self.specialization.detach()
+        )
         if self.jacobian_diversity is None:
             return metrics
 
@@ -126,8 +136,114 @@ class DensePredictor(nn.Module):
     ) -> TrainingLoss:
         output = self(state, action)
         prediction = next_state_mse(output.pred, next_state)
-        specialization = prediction.new_zeros(())
-        return TrainingLoss(prediction, prediction, specialization)
+        zero = prediction.new_zeros(())
+        return TrainingLoss(
+            total=prediction,
+            prediction=prediction,
+            control_response=zero,
+            balance=zero,
+        )
+
+
+class MoEPredictor(nn.Module):
+    """Experiment 1 MoE with an explicit state-only or state-action router."""
+
+    def __init__(
+        self,
+        *,
+        state_dim: int = STATE_DIM,
+        action_dim: int = ACTION_DIM,
+        num_experts: int = NUM_EXPERTS,
+        hidden_dim: int = 128,
+        router_hidden_dim: int = 64,
+        router_input: RouterInput = "state",
+    ) -> None:
+        super().__init__()
+        if min(
+            state_dim,
+            action_dim,
+            num_experts,
+            hidden_dim,
+            router_hidden_dim,
+        ) <= 0:
+            raise ValueError("all model dimensions must be positive")
+        if router_input not in ("state", "state_action"):
+            raise ValueError(
+                "router_input must be either 'state' or 'state_action'"
+            )
+
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.num_experts = num_experts
+        self.router_input = router_input
+        expert_input_dim = state_dim + action_dim
+
+        # Experts are initialized before the router so their RNG path is identical
+        # for state-only and state-action routing under the same construction seed.
+        self.experts = nn.ModuleList(
+            [
+                _mlp((expert_input_dim, hidden_dim, hidden_dim, state_dim))
+                for _ in range(num_experts)
+            ]
+        )
+        router_input_dim = state_dim if router_input == "state" else expert_input_dim
+        self.router = _mlp(
+            (router_input_dim, router_hidden_dim, router_hidden_dim, num_experts)
+        )
+
+    def _validate_inputs(self, state: Tensor, action: Tensor) -> None:
+        if state.ndim != 2 or state.shape[-1] != self.state_dim:
+            raise ValueError(
+                f"state must have shape [batch_size, {self.state_dim}], "
+                f"got {tuple(state.shape)}"
+            )
+        if action.ndim != 2 or action.shape[-1] != self.action_dim:
+            raise ValueError(
+                f"action must have shape [batch_size, {self.action_dim}], "
+                f"got {tuple(action.shape)}"
+            )
+        if state.shape[0] != action.shape[0]:
+            raise ValueError("state and action must have the same batch size")
+        if state.device != action.device:
+            raise ValueError("state and action must be on the same device")
+        if state.dtype != action.dtype:
+            raise ValueError("state and action must have the same dtype")
+
+    def forward(self, state: Tensor, action: Tensor) -> PredictorOutput:
+        self._validate_inputs(state, action)
+        expert_input = torch.cat((state, action), dim=-1)
+        expert_outputs = torch.stack(
+            [expert(expert_input) for expert in self.experts], dim=1
+        )
+        router_features = (
+            state if self.router_input == "state" else expert_input
+        )
+        alpha = torch.softmax(self.router(router_features), dim=-1)
+        pred = torch.sum(alpha.unsqueeze(-1) * expert_outputs, dim=1)
+        return PredictorOutput(pred=pred, alpha=alpha, expert_outputs=expert_outputs)
+
+
+def build_experiment1_model(
+    model_name: Experiment1ModelName,
+    *,
+    initialization_seed: int | None = None,
+) -> nn.Module:
+    """Construct one of the four Experiment 1 baselines on CPU."""
+
+    def construct() -> nn.Module:
+        if model_name == "dense":
+            return DensePredictor()
+        if model_name == "moe_a":
+            return MoEPredictor(router_input="state_action")
+        if model_name in ("moe_s", "ours"):
+            return MoEPredictor(router_input="state")
+        raise ValueError(f"unknown Experiment 1 model: {model_name}")
+
+    if initialization_seed is None:
+        return construct()
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(initialization_seed)
+        return construct()
 
 
 class _MoEPredictor(nn.Module):
@@ -164,6 +280,8 @@ class _MoEPredictor(nn.Module):
         return TrainingLoss(
             total=prediction,
             prediction=prediction,
+            control_response=prediction.new_zeros(()),
+            balance=prediction.new_zeros(()),
             specialization=diagnostics.total,
             jacobian_diversity=diagnostics.diversity,
             activity=diagnostics.activity,
@@ -212,6 +330,8 @@ class JacobianMoEPredictor(_MoEPredictor):
         return TrainingLoss(
             total=total,
             prediction=prediction,
+            control_response=prediction.new_zeros(()),
+            balance=prediction.new_zeros(()),
             specialization=specialization_terms.total,
             jacobian_diversity=specialization_terms.diversity,
             activity=specialization_terms.activity,

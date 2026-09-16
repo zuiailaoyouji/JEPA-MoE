@@ -23,6 +23,39 @@ class ControlJacobianSpecialization(NamedTuple):
     routing_weights: Tensor
 
 
+def control_response_loss(
+    predicted_response: Tensor,
+    target_response: Tensor,
+) -> Tensor:
+    """Return mean_batch ||target_response - predicted_response||_2^2."""
+
+    if predicted_response.ndim != 2:
+        raise ValueError(
+            "predicted_response must have shape [batch_size, response_dim]"
+        )
+    if target_response.shape != predicted_response.shape:
+        raise ValueError(
+            f"target_response must have shape {tuple(predicted_response.shape)}, "
+            f"got {tuple(target_response.shape)}"
+        )
+    return (predicted_response - target_response).square().sum(dim=-1).mean()
+
+
+def load_balance_loss(routing_weights: Tensor) -> Tensor:
+    """Penalize deviation of mean soft-routing usage from uniform usage."""
+
+    if routing_weights.ndim != 2 or routing_weights.shape[-1] <= 0:
+        raise ValueError(
+            "routing_weights must have shape [batch_size, num_experts]"
+        )
+    if routing_weights.shape[0] <= 0:
+        raise ValueError("routing_weights batch size must be positive")
+    num_experts = routing_weights.shape[-1]
+    mean_usage = routing_weights.mean(dim=0)
+    uniform_usage = 1.0 / num_experts
+    return num_experts * (mean_usage - uniform_usage).square().sum()
+
+
 def control_jacobian_specialization_terms(
     model: _MoEPredictor,
     state: Tensor,
