@@ -1,0 +1,23 @@
+{
+  "batch_seed_offset": 10000,
+  "batch_size": 512,
+  "data_seed": 20260916,
+  "evaluation_batch_size": 2048,
+  "evaluation_direction_seed_offset": 40000,
+  "jacobian_batch_size": 512,
+  "lambda_bal": 0.01,
+  "lambda_cr": 1.0,
+  "learning_rate": 0.001,
+  "num_directions": 1,
+  "rollout_horizon": 25,
+  "rollout_trajectories": 10000,
+  "seed": 0,
+  "test_samples": 10000,
+  "train_direction_seed_offset": 20000,
+  "train_samples": 50000,
+  "training_steps": 10000,
+  "validation_direction_seed_offset": 30000,
+  "validation_interval": 250,
+  "validation_samples": 10000,
+  "weight_decay": 0.0001
+}

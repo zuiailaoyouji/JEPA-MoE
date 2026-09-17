@@ -1,0 +1,259 @@
+{
+  "config": {
+    "batch_seed_offset": 10000,
+    "batch_size": 512,
+    "data_seed": 20260916,
+    "evaluation_batch_size": 2048,
+    "evaluation_direction_seed_offset": 40000,
+    "jacobian_batch_size": 512,
+    "lambda_bal": 0.01,
+    "lambda_cr": 1.0,
+    "learning_rate": 0.001,
+    "num_directions": 1,
+    "rollout_horizon": 25,
+    "rollout_trajectories": 10000,
+    "seed": 0,
+    "test_samples": 10000,
+    "train_direction_seed_offset": 20000,
+    "train_samples": 50000,
+    "training_steps": 5000,
+    "validation_direction_seed_offset": 30000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "pilot_diagnostics": {
+    "all_losses_finite": true,
+    "ours_expert_collapse_observed": false,
+    "ours_expert_collapse_threshold": 0.05,
+    "ours_minimum_mean_usage": 0.3281929039001465,
+    "ours_to_moe_s_directional_response_mse_ratio": 0.24277704627452804,
+    "ours_to_moe_s_jacobian_error_ratio": 0.24362947925297063,
+    "ours_to_moe_s_test_prediction_mse_ratio": 0.38927143158144834,
+    "ours_validation_control_response_decreased": true,
+    "ours_validation_prediction_decreased": true
+  },
+  "results": [
+    {
+      "best_step": 4750,
+      "best_validation_prediction_mse": 6.4723244628112296e-06,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "directional_response_mse": 3.4423507843166587e-05,
+      "dynamics_subspace_principal_angle_cosines": null,
+      "dynamics_subspace_principal_cosine_similarity": null,
+      "dynamics_subspace_projection_reconstruction_error": null,
+      "final_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0,
+        "prediction_loss": 7.560968697362114e-06,
+        "prediction_mse": 7.560968697362114e-06,
+        "total_loss": 7.560968697362114e-06
+      },
+      "final_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0,
+        "prediction_loss": 6.930570556141901e-06,
+        "prediction_mse": 6.930570556141901e-06,
+        "total_loss": 6.930570556141901e-06
+      },
+      "iid_one_step_mse": 6.62772236391902e-06,
+      "initial_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0,
+        "prediction_loss": 0.05698584020137787,
+        "prediction_mse": 0.05698584020137787,
+        "total_loss": 0.05698584020137787
+      },
+      "initial_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0,
+        "prediction_loss": 0.05757202658057213,
+        "prediction_mse": 0.05757202658057213,
+        "total_loss": 0.05757202658057213
+      },
+      "jacobian_frobenius_mse": 6.920500993728637e-05,
+      "load_balance_loss": null,
+      "mean_expert_usage": null,
+      "model": "dense",
+      "normalized_routing_entropy": null,
+      "rollout_25_mse": 1.6447929479181766e-05,
+      "routing_effective_experts": null,
+      "routing_entropy": null,
+      "seed": 0,
+      "training_and_evaluation_seconds": 19.79643413424492
+    },
+    {
+      "best_step": 4500,
+      "best_validation_prediction_mse": 1.624863882716454e-06,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "directional_response_mse": 1.011446095071733e-05,
+      "dynamics_subspace_principal_angle_cosines": [
+        0.999707039470703,
+        0.9988376602367837,
+        0.9855785001392187
+      ],
+      "dynamics_subspace_principal_cosine_similarity": 0.994707733282235,
+      "dynamics_subspace_projection_reconstruction_error": 0.010489302604258257,
+      "final_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.00019332728697918355,
+        "prediction_loss": 1.7294447616222897e-06,
+        "prediction_mse": 1.7294447616222897e-06,
+        "total_loss": 3.6627175177272875e-06
+      },
+      "final_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 2.9777684510918335e-05,
+        "prediction_loss": 2.040648353431607e-06,
+        "prediction_mse": 2.040648353431607e-06,
+        "total_loss": 2.3384252093819667e-06
+      },
+      "iid_one_step_mse": 1.6500588040798902e-06,
+      "initial_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.001186310313642025,
+        "prediction_loss": 0.053522005677223206,
+        "prediction_mse": 0.053522005677223206,
+        "total_loss": 0.05353386700153351
+      },
+      "initial_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0012044730743393302,
+        "prediction_loss": 0.054479304945468904,
+        "prediction_mse": 0.054479304945468904,
+        "total_loss": 0.05449134948253632
+      },
+      "jacobian_frobenius_mse": 2.025999538600445e-05,
+      "load_balance_loss": 2.5398379401642854e-05,
+      "mean_expert_usage": [
+        0.33369155426025393,
+        0.3311203033447266,
+        0.33518813858032226
+      ],
+      "model": "moe_a",
+      "normalized_routing_entropy": 0.999988434260513,
+      "rollout_25_mse": 8.460340869612991e-06,
+      "routing_effective_experts": 2.999961881451589,
+      "routing_entropy": 1.0985995824045818,
+      "seed": 0,
+      "training_and_evaluation_seconds": 51.93053362518549
+    },
+    {
+      "best_step": 4000,
+      "best_validation_prediction_mse": 9.590556017428753e-07,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "directional_response_mse": 5.379960732534527e-06,
+      "dynamics_subspace_principal_angle_cosines": [
+        0.999982032860487,
+        0.9989813911363766,
+        0.9964492900296147
+      ],
+      "dynamics_subspace_principal_cosine_similarity": 0.9984709046754928,
+      "dynamics_subspace_projection_reconstruction_error": 0.0030531026978598214,
+      "final_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.0001271760556846857,
+        "prediction_loss": 1.4185641248332104e-06,
+        "prediction_mse": 1.4185641248332104e-06,
+        "total_loss": 2.6903246634901734e-06
+      },
+      "final_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 2.65616233315086e-05,
+        "prediction_loss": 1.618591666010616e-06,
+        "prediction_mse": 1.618591666010616e-06,
+        "total_loss": 1.8842078912712168e-06
+      },
+      "iid_one_step_mse": 1.0052427416667342e-06,
+      "initial_train_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.007565815933048725,
+        "prediction_loss": 0.053564831614494324,
+        "prediction_mse": 0.053564831614494324,
+        "total_loss": 0.05364048853516579
+      },
+      "initial_validation_losses": {
+        "control_response_loss": 0.0,
+        "load_balance_loss": 0.007540024402737618,
+        "prediction_loss": 0.0544749231338501,
+        "prediction_mse": 0.0544749231338501,
+        "total_loss": 0.054550323778390884
+      },
+      "jacobian_frobenius_mse": 1.0691319545730948e-05,
+      "load_balance_loss": 0.0002168998881806356,
+      "mean_expert_usage": [
+        0.32646827392578126,
+        0.3358696464538574,
+        0.3376620788574219
+      ],
+      "model": "moe_s",
+      "normalized_routing_entropy": 0.9999009704053732,
+      "rollout_25_mse": 2.5959258349612353e-06,
+      "routing_effective_experts": 2.99967363236513,
+      "routing_entropy": 1.098503493538511,
+      "seed": 0,
+      "training_and_evaluation_seconds": 62.27452267706394
+    },
+    {
+      "best_step": 5000,
+      "best_validation_prediction_mse": 3.85484946627912e-07,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "directional_response_mse": 1.3061309757176786e-06,
+      "dynamics_subspace_principal_angle_cosines": [
+        0.9999912151993958,
+        0.9998719444907752,
+        0.9981402478922075
+      ],
+      "dynamics_subspace_principal_cosine_similarity": 0.999334469194126,
+      "dynamics_subspace_projection_reconstruction_error": 0.0013295543961313414,
+      "final_train_losses": {
+        "control_response_loss": 1.6660267192492029e-06,
+        "load_balance_loss": 0.00044468644773587584,
+        "prediction_loss": 3.9996672285269597e-07,
+        "prediction_mse": 3.9996672285269597e-07,
+        "total_loss": 6.5128579080919735e-06
+      },
+      "final_validation_losses": {
+        "control_response_loss": 1.2863740465036244e-06,
+        "load_balance_loss": 0.0001790224940807093,
+        "prediction_loss": 3.85484946627912e-07,
+        "prediction_mse": 3.85484946627912e-07,
+        "total_loss": 3.462083777412772e-06
+      },
+      "iid_one_step_mse": 3.913122811354697e-07,
+      "initial_train_losses": {
+        "control_response_loss": 0.01751760020852089,
+        "load_balance_loss": 0.007565815933048725,
+        "prediction_loss": 0.053564831614494324,
+        "prediction_mse": 0.053564831614494324,
+        "total_loss": 0.07115808874368668
+      },
+      "initial_validation_losses": {
+        "control_response_loss": 0.017222405606508256,
+        "load_balance_loss": 0.007540024402737618,
+        "prediction_loss": 0.0544749231338501,
+        "prediction_mse": 0.0544749231338501,
+        "total_loss": 0.07177272765636444
+      },
+      "jacobian_frobenius_mse": 2.6047206134535374e-06,
+      "load_balance_loss": 0.00012955223625008206,
+      "mean_expert_usage": [
+        0.3281929039001465,
+        0.3372354721069336,
+        0.3345716293334961
+      ],
+      "model": "ours",
+      "normalized_routing_entropy": 0.999940935055794,
+      "rollout_25_mse": 2.586893501225859e-06,
+      "routing_effective_experts": 2.9998053378952267,
+      "routing_entropy": 1.0985473991945756,
+      "seed": 0,
+      "training_and_evaluation_seconds": 206.2498941756785
+    }
+  ],
+  "runtime": {
+    "cuda_version": "12.1",
+    "device": "cuda",
+    "torch_version": "2.5.1+cu121"
+  }
+}

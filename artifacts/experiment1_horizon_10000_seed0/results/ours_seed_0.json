@@ -1,0 +1,56 @@
+{
+  "best_step": 8500,
+  "best_validation_prediction_mse": 2.0978291017854646e-07,
+  "checkpoint_selection_metric": "validation prediction MSE",
+  "directional_response_mse": 8.514495973940939e-07,
+  "dynamics_subspace_principal_angle_cosines": [
+    0.9999942161862305,
+    0.9998735938375789,
+    0.998853165354544
+  ],
+  "dynamics_subspace_principal_cosine_similarity": 0.9995736584594512,
+  "dynamics_subspace_projection_reconstruction_error": 0.000852039241739922,
+  "final_train_losses": {
+    "control_response_loss": 1.4940806067897938e-06,
+    "load_balance_loss": 0.0004705917672254145,
+    "prediction_loss": 3.385787010756758e-07,
+    "prediction_mse": 3.385787010756758e-07,
+    "total_loss": 6.538576599268708e-06
+  },
+  "final_validation_losses": {
+    "control_response_loss": 1.4755663909454598e-06,
+    "load_balance_loss": 3.355065461946651e-05,
+    "prediction_loss": 3.4074412051268155e-07,
+    "prediction_mse": 3.4074412051268155e-07,
+    "total_loss": 2.1518171117349995e-06
+  },
+  "iid_one_step_mse": 2.1393776696640998e-07,
+  "initial_train_losses": {
+    "control_response_loss": 0.01751760020852089,
+    "load_balance_loss": 0.007565815933048725,
+    "prediction_loss": 0.053564831614494324,
+    "prediction_mse": 0.053564831614494324,
+    "total_loss": 0.07115808874368668
+  },
+  "initial_validation_losses": {
+    "control_response_loss": 0.017222405606508256,
+    "load_balance_loss": 0.007540024402737618,
+    "prediction_loss": 0.0544749231338501,
+    "prediction_mse": 0.0544749231338501,
+    "total_loss": 0.07177272765636444
+  },
+  "jacobian_frobenius_mse": 1.6948772390605883e-06,
+  "load_balance_loss": 5.342756099967249e-05,
+  "mean_expert_usage": [
+    0.3337850860595703,
+    0.33014916076660156,
+    0.3360657592773437
+  ],
+  "model": "ours",
+  "normalized_routing_entropy": 0.9999756681921815,
+  "rollout_25_mse": 1.3712371740257367e-06,
+  "routing_effective_experts": 2.9999198074026037,
+  "routing_entropy": 1.098585557445035,
+  "seed": 0,
+  "training_and_evaluation_seconds": 407.3148993887007
+}

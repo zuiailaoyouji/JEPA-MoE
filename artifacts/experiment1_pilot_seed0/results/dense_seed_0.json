@@ -1,0 +1,48 @@
+{
+  "best_step": 4750,
+  "best_validation_prediction_mse": 6.4723244628112296e-06,
+  "checkpoint_selection_metric": "validation prediction MSE",
+  "directional_response_mse": 3.4423507843166587e-05,
+  "dynamics_subspace_principal_angle_cosines": null,
+  "dynamics_subspace_principal_cosine_similarity": null,
+  "dynamics_subspace_projection_reconstruction_error": null,
+  "final_train_losses": {
+    "control_response_loss": 0.0,
+    "load_balance_loss": 0.0,
+    "prediction_loss": 7.560968697362114e-06,
+    "prediction_mse": 7.560968697362114e-06,
+    "total_loss": 7.560968697362114e-06
+  },
+  "final_validation_losses": {
+    "control_response_loss": 0.0,
+    "load_balance_loss": 0.0,
+    "prediction_loss": 6.930570556141901e-06,
+    "prediction_mse": 6.930570556141901e-06,
+    "total_loss": 6.930570556141901e-06
+  },
+  "iid_one_step_mse": 6.62772236391902e-06,
+  "initial_train_losses": {
+    "control_response_loss": 0.0,
+    "load_balance_loss": 0.0,
+    "prediction_loss": 0.05698584020137787,
+    "prediction_mse": 0.05698584020137787,
+    "total_loss": 0.05698584020137787
+  },
+  "initial_validation_losses": {
+    "control_response_loss": 0.0,
+    "load_balance_loss": 0.0,
+    "prediction_loss": 0.05757202658057213,
+    "prediction_mse": 0.05757202658057213,
+    "total_loss": 0.05757202658057213
+  },
+  "jacobian_frobenius_mse": 6.920500993728637e-05,
+  "load_balance_loss": null,
+  "mean_expert_usage": null,
+  "model": "dense",
+  "normalized_routing_entropy": null,
+  "rollout_25_mse": 1.6447929479181766e-05,
+  "routing_effective_experts": null,
+  "routing_entropy": null,
+  "seed": 0,
+  "training_and_evaluation_seconds": 19.79643413424492
+}

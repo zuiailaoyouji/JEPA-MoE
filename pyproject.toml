@@ -30,6 +30,7 @@ where = ["src"]
 synthetic-basis-experiment = "jepa_moe.experiments.synthetic_basis:main"
 synthetic-diagnostic-experiments = "jepa_moe.experiments.synthetic_diagnostics:main"
 synthetic-warmup-experiment = "jepa_moe.experiments.synthetic_warmup:main"
+experiment1-pilot = "jepa_moe.experiments.experiment1_pilot:main"
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu121" }
