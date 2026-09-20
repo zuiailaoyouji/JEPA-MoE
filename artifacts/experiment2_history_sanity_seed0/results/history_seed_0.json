@@ -1,0 +1,17 @@
+{
+  "best_step": 15000,
+  "best_validation_prediction_mse": 1.7970441191573627e-05,
+  "checkpoint_selection_metric": "validation prediction MSE",
+  "model": "history",
+  "seed": 0,
+  "test": {
+    "per_system_prediction_mse": [
+      1.4740775494361448e-05,
+      1.3939642514016463e-05,
+      2.3068660219969563e-05,
+      1.789949851240398e-05
+    ],
+    "prediction_mse": 1.7438313737511636e-05
+  },
+  "training_seconds": 251.90688641369343
+}

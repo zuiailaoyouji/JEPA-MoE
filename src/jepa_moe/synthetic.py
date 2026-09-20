@@ -8,10 +8,11 @@ from typing import Literal
 import torch
 from torch import Tensor
 
-from .models import ACTION_DIM, NUM_EXPERTS, STATE_DIM
+from .models import ACTION_DIM, HISTORY_LENGTH, NUM_EXPERTS, STATE_DIM
 
 
 HELDOUT_ACTION_BOUND = 0.35
+NUM_SYSTEMS = 4
 ActionRegion = Literal["full", "iid", "heldout"]
 
 
@@ -33,6 +34,18 @@ class RolloutBatch:
 
     def __len__(self) -> int:
         return self.initial_state.shape[0]
+
+
+@dataclass(frozen=True)
+class HistoryTransitionBatch:
+    state_history: Tensor
+    past_actions: Tensor
+    current_action: Tensor
+    next_state: Tensor
+    system_id: Tensor
+
+    def __len__(self) -> int:
+        return self.state_history.shape[0]
 
 
 def _validate_state_action(state: Tensor, action: Tensor) -> None:
@@ -63,6 +76,28 @@ def basis_composition_weights(state: Tensor) -> Tensor:
         raise ValueError(f"state must have shape [batch, {STATE_DIM}]")
     x0, x1 = state[:, 0], state[:, 1]
     logits = torch.stack((2.0 * x0, 2.0 * x1, -2.0 * (x0 + x1)), dim=-1)
+    return torch.softmax(logits, dim=-1)
+
+
+def system_composition_weights(state: Tensor, system_id: int) -> Tensor:
+    """Return Experiment 2 state-conditioned weights for one synthetic system."""
+
+    if state.ndim != 2 or state.shape[-1] != STATE_DIM:
+        raise ValueError(f"state must have shape [batch, {STATE_DIM}]")
+    if isinstance(system_id, bool) or not isinstance(system_id, int):
+        raise TypeError("system_id must be an integer")
+    if not 0 <= system_id < NUM_SYSTEMS:
+        raise ValueError(f"system_id must be in [0, {NUM_SYSTEMS})")
+
+    x0, x1, x2, x3 = state.unbind(dim=-1)
+    if system_id == 0:
+        logits = torch.stack((2.0 * x0, 2.0 * x1, -2.0 * (x0 + x1)), dim=-1)
+    elif system_id == 1:
+        logits = torch.stack((2.0 * x2, 2.0 * x3, -2.0 * (x2 + x3)), dim=-1)
+    elif system_id == 2:
+        logits = torch.stack((-2.0 * x0, 2.0 * x1, 2.0 * (x0 - x1)), dim=-1)
+    else:
+        logits = torch.stack((2.0 * x2, -2.0 * x3, -2.0 * (x2 - x3)), dim=-1)
     return torch.softmax(logits, dim=-1)
 
 
@@ -114,6 +149,37 @@ def basis_composition_transition(state: Tensor, action: Tensor) -> Tensor:
     return torch.sum(alpha.unsqueeze(-1) * experts, dim=1)
 
 
+def system_true_transition(state: Tensor, action: Tensor, system_id: int) -> Tensor:
+    """Apply one Experiment 2 system using the shared ground-truth bases."""
+
+    experts = ground_truth_expert_outputs(state, action)
+    alpha = system_composition_weights(state, system_id)
+    return torch.sum(alpha.unsqueeze(-1) * experts, dim=1)
+
+
+def _batched_system_true_transition(
+    state: Tensor, action: Tensor, system_id: Tensor
+) -> Tensor:
+    """Apply per-sample synthetic systems without exposing IDs to a learned model."""
+
+    _validate_state_action(state, action)
+    if system_id.ndim != 1 or system_id.shape[0] != state.shape[0]:
+        raise ValueError("system_id must have shape [batch]")
+    if system_id.device != state.device:
+        raise ValueError("system_id must be on the same device as state")
+    if torch.any((system_id < 0) | (system_id >= NUM_SYSTEMS)):
+        raise ValueError(f"system_id values must be in [0, {NUM_SYSTEMS})")
+
+    next_state = torch.empty_like(state)
+    for selected_system in range(NUM_SYSTEMS):
+        mask = system_id == selected_system
+        if torch.any(mask):
+            next_state[mask] = system_true_transition(
+                state[mask], action[mask], selected_system
+            )
+    return next_state
+
+
 def ground_truth_expert_action_jacobians(state: Tensor) -> Tensor:
     """Analytic d F_gt_k / d a with shape [batch, 3, 4, 2]."""
 
@@ -145,6 +211,17 @@ def basis_composition_action_jacobian(state: Tensor, action: Tensor) -> Tensor:
     _validate_state_action(state, action)
     expert_jacobians = ground_truth_expert_action_jacobians(state)
     alpha = basis_composition_weights(state)
+    return torch.einsum("bk,bksa->bsa", alpha, expert_jacobians)
+
+
+def system_true_action_jacobian(
+    state: Tensor, action: Tensor, system_id: int
+) -> Tensor:
+    """Return d F_true^(system_id)(x, a) / d a with shape [batch, 4, 2]."""
+
+    _validate_state_action(state, action)
+    expert_jacobians = ground_truth_expert_action_jacobians(state)
+    alpha = system_composition_weights(state, system_id)
     return torch.einsum("bk,bksa->bsa", alpha, expert_jacobians)
 
 
@@ -200,6 +277,57 @@ def sample_actions(
         accepted.append(selected)
         remaining -= selected.shape[0]
     return torch.cat(accepted, dim=0)
+
+
+def make_history_transition_batch(
+    sample_count: int,
+    *,
+    seed: int,
+    dtype: torch.dtype = torch.float32,
+) -> HistoryTransitionBatch:
+    """Generate H=4 continuous histories from the Experiment 2 systems."""
+
+    if sample_count <= 0:
+        raise ValueError("sample_count must be positive")
+
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    system_id = torch.randint(
+        NUM_SYSTEMS, (sample_count,), generator=generator, dtype=torch.long
+    )
+    initial_state = torch.rand(
+        (sample_count, STATE_DIM), generator=generator, dtype=dtype
+    ) - 0.5
+    past_actions = sample_actions(
+        sample_count * HISTORY_LENGTH,
+        "full",
+        generator=generator,
+        dtype=dtype,
+    ).reshape(sample_count, HISTORY_LENGTH, ACTION_DIM)
+    current_action = sample_actions(
+        sample_count,
+        "full",
+        generator=generator,
+        dtype=dtype,
+    )
+
+    states = [initial_state]
+    state = initial_state
+    for history_index in range(HISTORY_LENGTH):
+        state = _batched_system_true_transition(
+            state, past_actions[:, history_index], system_id
+        )
+        states.append(state)
+
+    next_state = _batched_system_true_transition(
+        state, current_action, system_id
+    )
+    return HistoryTransitionBatch(
+        state_history=torch.stack(states, dim=1),
+        past_actions=past_actions,
+        current_action=current_action,
+        next_state=next_state,
+        system_id=system_id,
+    )
 
 
 def make_transition_batch(

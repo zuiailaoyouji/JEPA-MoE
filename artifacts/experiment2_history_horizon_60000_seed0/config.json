@@ -1,0 +1,26 @@
+{
+  "batch_seed_offset": 10000,
+  "batch_size": 512,
+  "checkpoint_validation_interval": 250,
+  "data_seed": 20260920,
+  "diagnostic_samples": 512,
+  "diagnostic_seed_offset": 20000,
+  "evaluation_batch_size": 2048,
+  "extended_training_steps": 60000,
+  "lambda_bal": 0.01,
+  "learning_rate": 0.001,
+  "reported_validation_interval": 2500,
+  "resume_step": 40000,
+  "saturation_criterion": {
+    "A": "best checkpoint is not in the final 2,500 steps",
+    "B": "relative validation-MSE improvement from 55k to 60k is below 5%",
+    "combination": "A or B"
+  },
+  "seed": 0,
+  "test_samples": 10000,
+  "train_samples": 50000,
+  "training_steps": 15000,
+  "validation_interval": 250,
+  "validation_samples": 10000,
+  "weight_decay": 0.0001
+}

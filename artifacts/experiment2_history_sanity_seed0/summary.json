@@ -1,0 +1,99 @@
+{
+  "config": {
+    "batch_seed_offset": 10000,
+    "batch_size": 512,
+    "data_seed": 20260920,
+    "diagnostic_samples": 512,
+    "diagnostic_seed_offset": 20000,
+    "evaluation_batch_size": 2048,
+    "lambda_bal": 0.01,
+    "learning_rate": 0.001,
+    "seed": 0,
+    "test_samples": 10000,
+    "train_samples": 50000,
+    "training_steps": 15000,
+    "validation_interval": 250,
+    "validation_samples": 10000,
+    "weight_decay": 0.0001
+  },
+  "history_routing_diagnostics": {
+    "context_collapse_threshold": 0.001,
+    "context_collapsed": false,
+    "context_global_std": 0.44782590866088867,
+    "context_mean_feature_std": 0.3502253293991089,
+    "context_mean_norm": 3.3473892211914062,
+    "context_min_feature_std": 0.19824670255184174,
+    "history_transition_max_abs_error": 6.661338147750939e-16,
+    "matched_current_actions": true,
+    "matched_current_state": true,
+    "matched_past_actions": true,
+    "pairwise_mean_alpha_distance": [
+      [
+        0.0,
+        0.11905784904956818,
+        0.11555267870426178,
+        0.12083854526281357
+      ],
+      [
+        0.11905784904956818,
+        0.0,
+        0.1350056380033493,
+        0.12106022983789444
+      ],
+      [
+        0.11555267870426178,
+        0.1350056380033493,
+        0.0,
+        0.13015414774417877
+      ],
+      [
+        0.12083854526281357,
+        0.12106022983789444,
+        0.13015414774417877,
+        0.0
+      ]
+    ]
+  },
+  "results": [
+    {
+      "best_step": 10250,
+      "best_validation_prediction_mse": 0.00013482777010649443,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "model": "state_only",
+      "seed": 0,
+      "test": {
+        "per_system_prediction_mse": [
+          0.00012372552380300768,
+          9.960758907668245e-05,
+          0.00017516721652878955,
+          0.0001378621773691804
+        ],
+        "prediction_mse": 0.00013437839597463608
+      },
+      "training_seconds": 184.38633194193244
+    },
+    {
+      "best_step": 15000,
+      "best_validation_prediction_mse": 1.7970441191573627e-05,
+      "checkpoint_selection_metric": "validation prediction MSE",
+      "model": "history",
+      "seed": 0,
+      "test": {
+        "per_system_prediction_mse": [
+          1.4740775494361448e-05,
+          1.3939642514016463e-05,
+          2.3068660219969563e-05,
+          1.789949851240398e-05
+        ],
+        "prediction_mse": 1.7438313737511636e-05
+      },
+      "training_seconds": 251.90688641369343
+    }
+  ],
+  "runtime": {
+    "cuda_version": "12.1",
+    "device": "cuda",
+    "torch_version": "2.5.1+cu121"
+  },
+  "shared_dataset_object": true
+}

@@ -13,6 +13,8 @@ STATE_DIM = 4
 ACTION_DIM = 2
 INPUT_DIM = STATE_DIM + ACTION_DIM
 NUM_EXPERTS = 3
+HISTORY_LENGTH = 4
+HISTORY_CONTEXT_DIM = 64
 RouterInput = Literal["state", "state_action"]
 Experiment1ModelName = Literal["dense", "moe_a", "moe_s", "ours"]
 
@@ -221,6 +223,117 @@ class MoEPredictor(nn.Module):
         alpha = torch.softmax(self.router(router_features), dim=-1)
         pred = torch.sum(alpha.unsqueeze(-1) * expert_outputs, dim=1)
         return PredictorOutput(pred=pred, alpha=alpha, expert_outputs=expert_outputs)
+
+
+def _validate_history_inputs(
+    state_history: Tensor, past_actions: Tensor
+) -> None:
+    batch_size = state_history.shape[0] if state_history.ndim > 0 else None
+    expected_state_shape = (batch_size, HISTORY_LENGTH + 1, STATE_DIM)
+    expected_action_shape = (batch_size, HISTORY_LENGTH, ACTION_DIM)
+    if state_history.ndim != 3 or state_history.shape[1:] != expected_state_shape[1:]:
+        raise ValueError(
+            "state_history must have shape "
+            f"[batch_size, {HISTORY_LENGTH + 1}, {STATE_DIM}], "
+            f"got {tuple(state_history.shape)}"
+        )
+    if past_actions.ndim != 3 or past_actions.shape[1:] != expected_action_shape[1:]:
+        raise ValueError(
+            "past_actions must have shape "
+            f"[batch_size, {HISTORY_LENGTH}, {ACTION_DIM}], "
+            f"got {tuple(past_actions.shape)}"
+        )
+    if state_history.shape[0] != past_actions.shape[0]:
+        raise ValueError("state_history and past_actions must have the same batch size")
+    if state_history.device != past_actions.device:
+        raise ValueError("state_history and past_actions must be on the same device")
+    if state_history.dtype != past_actions.dtype:
+        raise ValueError("state_history and past_actions must have the same dtype")
+
+
+def flatten_history(state_history: Tensor, past_actions: Tensor) -> Tensor:
+    """Interleave four past state-action pairs and append the current state."""
+
+    _validate_history_inputs(state_history, past_actions)
+    past_pairs = torch.cat((state_history[:, :-1], past_actions), dim=-1)
+    return torch.cat(
+        (past_pairs.flatten(start_dim=1), state_history[:, -1]), dim=-1
+    )
+
+
+class HistoryContextEncoder(nn.Module):
+    """Encode an H=4 state-action history without observing the current action."""
+
+    input_dim = (HISTORY_LENGTH + 1) * STATE_DIM + HISTORY_LENGTH * ACTION_DIM
+    context_dim = HISTORY_CONTEXT_DIM
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.network = _mlp((self.input_dim, 128, 128, self.context_dim))
+
+    def forward(self, state_history: Tensor, past_actions: Tensor) -> Tensor:
+        return self.network(flatten_history(state_history, past_actions))
+
+
+class HistoryRouter(nn.Module):
+    """Map a history context to normalized expert composition weights."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.network = _mlp((HISTORY_CONTEXT_DIM, 128, 128, NUM_EXPERTS))
+
+    def forward(self, context: Tensor) -> Tensor:
+        if context.ndim != 2 or context.shape[-1] != HISTORY_CONTEXT_DIM:
+            raise ValueError(
+                "context must have shape "
+                f"[batch_size, {HISTORY_CONTEXT_DIM}], got {tuple(context.shape)}"
+            )
+        return torch.softmax(self.network(context), dim=-1)
+
+
+class HistoryConditionedMoEPredictor(nn.Module):
+    """Experiment 2 MoE shared by the baseline and control-response objective."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.experts = nn.ModuleList(
+            [_mlp((INPUT_DIM, 128, 128, STATE_DIM)) for _ in range(NUM_EXPERTS)]
+        )
+        self.context_encoder = HistoryContextEncoder()
+        self.router = HistoryRouter()
+
+    def routing_weights(
+        self, state_history: Tensor, past_actions: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        context = self.context_encoder(state_history, past_actions)
+        return context, self.router(context)
+
+    def forward(
+        self,
+        state_history: Tensor,
+        past_actions: Tensor,
+        current_action: Tensor,
+    ) -> PredictorOutput:
+        _, alpha = self.routing_weights(state_history, past_actions)
+        current_state = state_history[:, -1]
+        expert_input = _model_input(current_state, current_action)
+        expert_outputs = torch.stack(
+            [expert(expert_input) for expert in self.experts], dim=1
+        )
+        pred = torch.sum(alpha.unsqueeze(-1) * expert_outputs, dim=1)
+        return PredictorOutput(pred=pred, alpha=alpha, expert_outputs=expert_outputs)
+
+
+def build_experiment2_model(
+    *, initialization_seed: int | None = None
+) -> HistoryConditionedMoEPredictor:
+    """Construct the single shared Experiment 2 predictor architecture on CPU."""
+
+    if initialization_seed is None:
+        return HistoryConditionedMoEPredictor()
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(initialization_seed)
+        return HistoryConditionedMoEPredictor()
 
 
 def build_experiment1_model(
